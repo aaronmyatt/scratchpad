@@ -18,6 +18,29 @@ release artifact — so cutting a release is a single tarball-build cycle.
 
 ---
 
+## TL;DR — the one-liner
+
+99% of releases:
+
+```bash
+./scripts/release.sh v0.1.0
+```
+
+The script walks every step below in sequence: preflight → tag + push →
+build → publish GitHub Release → verify the `/latest/` redirect → bump
+the homebrew tap. Every step is idempotent — re-run after any failure
+and it picks up where it left off. Add `--dry-run` to print the planned
+steps without executing, or `--yes` to skip the confirmation prompts
+(intended for CI).
+
+Tap repo location: defaults to `../homebrew-scratchpad` (sibling
+directory). Override via `SCRATCHPAD_TAP_DIR=/path/to/tap`.
+
+The manual steps below are kept as reference for understanding what the
+script does, and as a fallback when something genuinely needs a one-off.
+
+---
+
 ## 0. Pre-flight (will become automated by TASK-39)
 
 Until TASK-39 ships a `scripts/preflight-release.sh`, run these by hand:
