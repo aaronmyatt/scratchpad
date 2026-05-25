@@ -1,0 +1,42 @@
+# Gemfile — only needed for local `bundle exec jekyll serve` runs.
+# GitHub Pages builds the site server-side with its pinned Jekyll version
+# (see https://pages.github.com/versions/), so this file is purely for
+# contributors who want to preview changes before pushing.
+#
+# Setup once:
+#   cd docs && bundle install
+# Then iterate:
+#   bundle exec jekyll serve --livereload
+#   → http://127.0.0.1:4000/scratchpad/
+#
+# Pinning github-pages (rather than jekyll directly) gives us the exact
+# same gem set GitHub uses, so what builds here builds there.
+# Ref: https://github.com/github/pages-gem
+
+source "https://rubygems.org"
+
+# We use standalone Jekyll 4.x locally, NOT the legacy `github-pages` gem.
+#
+# Why not `github-pages`:
+#   That gem pins Jekyll 3.9 + Liquid 4.0.3, which call `String#tainted?` —
+#   a method removed from Ruby 3.2. On modern Ruby (3.4+, 4.x) the build
+#   crashes hard. github-pages has been effectively abandoned for years;
+#   GitHub Pages itself still uses it on the server, but they've stopped
+#   bumping it for compatibility.
+#
+# Risk of drift between local Jekyll 4 and GH's server-side Jekyll 3:
+#   For a plain markdown + GitHub-supported-theme site like ours, zero.
+#   Jekyll 4 is a careful superset of 3.x and the cayman theme works on
+#   both. If we ever rely on something 3.x-specific the GH build will
+#   tell us. The escape hatch is a GH Actions workflow (.github/workflows/
+#   pages.yml using actions/jekyll-build-pages) that pins our chosen
+#   Jekyll version server-side too — defer until needed.
+#
+# Refs:
+#   - jekyll-theme-cayman gem (works on Jekyll 3 + 4): https://github.com/pages-themes/cayman
+#   - GH Pages "custom Jekyll version" via Actions:
+#     https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/about-github-pages-and-jekyll#custom-jekyll-plugins
+
+gem "jekyll", "~> 4.3"
+gem "jekyll-theme-cayman"
+gem "webrick"   # required on Ruby 3.0+ for `jekyll serve`'s built-in server

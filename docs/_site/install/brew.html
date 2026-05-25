@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.9.0 -->
+<title>Install via Homebrew | Scratchpad</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Install via Homebrew" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Install Scratchpad via the aaronmyatt/scratchpad tap." />
+<meta name="twitter:description" property="og:description" content="Install Scratchpad via the aaronmyatt/scratchpad tap." />
+<link rel="canonical" href="http://localhost:4000/scratchpad/install/brew.html" />
+<meta property="og:url" content="http://localhost:4000/scratchpad/install/brew.html" />
+<meta property="og:site_name" content="Scratchpad" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Install via Homebrew" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Install Scratchpad via the aaronmyatt/scratchpad tap.","headline":"Install via Homebrew","url":"http://localhost:4000/scratchpad/install/brew.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="/scratchpad/assets/css/style.css?v=">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/scratchpad/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <a id="skip-to-content" href="#content">Skip to the content.</a>
+
+    <header class="page-header" role="banner">
+      <h1 class="project-name">Install via Homebrew</h1>
+      <h2 class="project-tagline">Install Scratchpad via the aaronmyatt/scratchpad tap.</h2>
+      
+      
+    </header>
+
+    <main id="content" class="main-content" role="main">
+      <blockquote>
+  <p><strong>Status:</strong> Cask formula is written and ready; tap repo goes live
+alongside the first GitHub Release (v0.1.0). Until then, use
+<a href="/scratchpad/install/curl">curl | bash</a> or the
+<a href="/scratchpad/install/direct">direct download</a>.</p>
+</blockquote>
+
+<h2 id="one-liner">One-liner</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew <span class="nb">install </span>aaronmyatt/scratchpad/scratchpad
+</code></pre></div></div>
+
+<p>Or explicitly:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew tap aaronmyatt/scratchpad
+brew <span class="nb">install </span>scratchpad
+</code></pre></div></div>
+
+<h2 id="what-this-does">What this does</h2>
+
+<ol>
+  <li>Adds the <code class="language-plaintext highlighter-rouge">aaronmyatt/scratchpad</code> tap (a third-party Homebrew repo).</li>
+  <li>Downloads the latest <code class="language-plaintext highlighter-rouge">Scratchpad-arm64.tar.gz</code> release artifact from
+<a href="https://github.com/aaronmyatt/scratchpad/releases/latest">github.com/aaronmyatt/scratchpad/releases</a>.</li>
+  <li>Verifies the sha256 against the value pinned in the Cask formula.</li>
+  <li>Extracts <code class="language-plaintext highlighter-rouge">Scratchpad.app</code> into <code class="language-plaintext highlighter-rouge">/Applications</code>.</li>
+  <li>Strips the <code class="language-plaintext highlighter-rouge">com.apple.quarantine</code> extended attribute as part of brew’s
+standard install flow — so the app launches with no Gatekeeper prompt.</li>
+</ol>
+
+<h2 id="updating">Updating</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew update
+brew upgrade scratchpad
+</code></pre></div></div>
+
+<h2 id="uninstalling">Uninstalling</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew uninstall scratchpad
+brew untap aaronmyatt/scratchpad   <span class="c"># optional</span>
+</code></pre></div></div>
+
+<h2 id="after-install">After install</h2>
+
+<p>On first launch, Scratchpad offers to install the small <code class="language-plaintext highlighter-rouge">sp</code> CLI on your
+PATH so you can pipe text from any terminal:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> | sp
+</code></pre></div></div>
+
+<p>Accept the prompt — by default it installs to <code class="language-plaintext highlighter-rouge">/usr/local/bin/sp</code> (or
+<code class="language-plaintext highlighter-rouge">~/bin/sp</code> if <code class="language-plaintext highlighter-rouge">/usr/local/bin</code> isn’t writable, with PATH guidance).</p>
+
+<hr />
+
+<h2 id="why-brew-is-the-friction-free-path">Why brew is the friction-free path</h2>
+
+<p>Homebrew downloads release artifacts via curl (not via a browser), so the
+<code class="language-plaintext highlighter-rouge">com.apple.quarantine</code> extended attribute that triggers Gatekeeper never
+gets attached. Plus, brew explicitly strips the attribute on install as
+belt-and-braces.</p>
+
+<p>The
+<a href="/scratchpad/install/direct">direct DMG download path</a>
+hits Gatekeeper because browsers do attach the attribute — workarounds are
+documented there for users who prefer the visual install experience.</p>
+
+<p>See
+<a href="https://github.com/aaronmyatt/scratchpad/blob/main/backlog/decisions/decision-3%20-%20Skip-Apple-notarization-for-v1.md">decision-3</a>
+for the full distribution-strategy rationale (why Scratchpad isn’t
+notarized for v1 and why brew/curl bypass that gracefully).</p>
+
+
+      <footer class="site-footer">
+        
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.</span>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+# Jekyll site config for the Scratchpad docs site.
+#
+# Source folder: /docs (configured via repo Settings → Pages → Branch: main /
+# Folder: /docs). GitHub Pages auto-detects this file and runs the
+# corresponding Jekyll build server-side. Locally:
+#
+#   cd docs && bundle install && bundle exec jekyll serve
+#   → http://localhost:4000/scratchpad/
+#
+# Theme choice: jekyll-theme-cayman.
+#   - It's one of the seven themes GitHub Pages supports natively (no
+#     `gem` dance required server-side).
+#   - Cayman gives us a colour-banded hero header that's a good frame for
+#     screenshots without us writing any CSS yet — matches the "markdown
+#     only for v1" scope of TASK-36.
+#   - Easy to switch to `minimal` (plainer) or `architect` (broader) later
+#     by editing this one line. Custom CSS lands in follow-up CSS tasks.
+#
+# Refs:
+#   - GitHub Pages supported themes: https://pages.github.com/themes/
+#   - Cayman theme repo (override-able _layouts etc.): https://github.com/pages-themes/cayman
+#   - Jekyll config reference: https://jekyllrb.com/docs/configuration/
+
+title: Scratchpad
+description: >-
+  A pinned, menu-bar-resident dump receiver for macOS — no language SDKs,
+  no config. If your program can POST or write to stdout, it can talk to
+  Scratchpad.
+
+# baseurl/url for project pages (aaronmyatt.github.io/scratchpad).
+# Strip the leading slash if/when we move to a custom domain.
+baseurl: "/scratchpad"
+url: "https://aaronmyatt.github.io"
+
+theme: jekyll-theme-cayman
+
+# Header buttons (cayman convention: shown as pill buttons in the hero band)
+show_downloads: false
+
+# Markdown engine. kramdown is GitHub Pages' default; pinning here makes the
+# behaviour reproducible if we ever bring our own Jekyll version.
+markdown: kramdown
+kramdown:
+  syntax_highlighter: rouge
+
+# Files Jekyll should ignore (won't be served)
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+  - README.md   # local-only contributor notes for the site itself

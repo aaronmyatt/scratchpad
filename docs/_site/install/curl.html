@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.9.0 -->
+<title>Install via curl | Scratchpad</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Install via curl" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="One-line install via curl bash. Verifies sha256 before extracting." />
+<meta name="twitter:description" property="og:description" content="One-line install via curl bash. Verifies sha256 before extracting." />
+<link rel="canonical" href="http://localhost:4000/scratchpad/install/curl.html" />
+<meta property="og:url" content="http://localhost:4000/scratchpad/install/curl.html" />
+<meta property="og:site_name" content="Scratchpad" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Install via curl" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"One-line install via curl bash. Verifies sha256 before extracting.","headline":"Install via curl","url":"http://localhost:4000/scratchpad/install/curl.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="/scratchpad/assets/css/style.css?v=">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/scratchpad/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <a id="skip-to-content" href="#content">Skip to the content.</a>
+
+    <header class="page-header" role="banner">
+      <h1 class="project-name">Install via curl</h1>
+      <h2 class="project-tagline">One-line install via curl | bash. Verifies sha256 before extracting.</h2>
+      
+      
+    </header>
+
+    <main id="content" class="main-content" role="main">
+      <h2 id="one-liner">One-liner</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-fsSL</span> https://raw.githubusercontent.com/aaronmyatt/scratchpad/main/install.sh | bash
+</code></pre></div></div>
+
+<p>That’s it — <code class="language-plaintext highlighter-rouge">Scratchpad.app</code> lands in <code class="language-plaintext highlighter-rouge">/Applications</code> (or <code class="language-plaintext highlighter-rouge">~/Applications</code>
+if <code class="language-plaintext highlighter-rouge">/Applications</code> isn’t writable), with no Gatekeeper prompt on first
+launch.</p>
+
+<h2 id="inspect-first">Inspect first</h2>
+
+<p>If you’re (rightly) cautious about <code class="language-plaintext highlighter-rouge">curl … | bash</code> patterns, read it first:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-fsSL</span> https://raw.githubusercontent.com/aaronmyatt/scratchpad/main/install.sh | less
+</code></pre></div></div>
+
+<p>Or just open
+<a href="https://github.com/aaronmyatt/scratchpad/blob/main/install.sh">install.sh</a>
+on GitHub.</p>
+
+<h2 id="what-the-script-does">What the script does</h2>
+
+<ol>
+  <li>Refuses to run on anything but Apple Silicon macOS (decision-1).</li>
+  <li>Fetches the latest <code class="language-plaintext highlighter-rouge">Scratchpad-arm64.tar.gz</code> + <code class="language-plaintext highlighter-rouge">.sha256</code> sidecar from
+the latest GitHub Release.</li>
+  <li>Verifies the checksum. <strong>Aborts with exit 1 if the tarball is tampered
+or corrupt</strong> — never extracts a mismatched file.</li>
+  <li>Extracts into <code class="language-plaintext highlighter-rouge">/Applications</code> if writable, otherwise creates and uses
+<code class="language-plaintext highlighter-rouge">~/Applications</code>. Never uses <code class="language-plaintext highlighter-rouge">sudo</code>.</li>
+  <li>Defensively strips <code class="language-plaintext highlighter-rouge">com.apple.quarantine</code> — curl doesn’t set it in the
+first place, but a corporate proxy or future curl version could. Costs
+microseconds, saves a footgun.</li>
+  <li>Prints a “next steps” panel pointing you at the first-launch
+PathInstaller prompt for the <code class="language-plaintext highlighter-rouge">sp</code> CLI.</li>
+</ol>
+
+<h2 id="environment-overrides">Environment overrides</h2>
+
+<p>For advanced users, CI, or testing:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Default</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_VERSION</code></td>
+      <td><code class="language-plaintext highlighter-rouge">latest</code></td>
+      <td>Pin a specific release tag, e.g. <code class="language-plaintext highlighter-rouge">v0.1.0</code>, for reproducible installs.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_INSTALL_DIR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/Applications</code> or <code class="language-plaintext highlighter-rouge">~/Applications</code></td>
+      <td>Override the install target dir entirely.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_TARBALL_URL</code></td>
+      <td>(computed)</td>
+      <td>Override the tarball URL — primarily used to test the installer against a <code class="language-plaintext highlighter-rouge">file://</code> local artifact before publishing a release.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_REPO</code></td>
+      <td><code class="language-plaintext highlighter-rouge">aaronmyatt/scratchpad</code></td>
+      <td>Override the GitHub repo (forks).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Example: pin to a specific version in a CI lockfile.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">SCRATCHPAD_VERSION</span><span class="o">=</span>v0.1.0 <span class="se">\</span>
+  curl <span class="nt">-fsSL</span> https://raw.githubusercontent.com/aaronmyatt/scratchpad/main/install.sh | bash
+</code></pre></div></div>
+
+<h2 id="why-curl-is-the-friction-free-path">Why curl is the friction-free path</h2>
+
+<p>Unlike browsers, <code class="language-plaintext highlighter-rouge">curl</code> doesn’t attach the <code class="language-plaintext highlighter-rouge">com.apple.quarantine</code> extended
+attribute to downloaded files. The same trick is how Homebrew itself,
+rustup, deno, and bun all install on macOS — well-understood and
+universally relied upon.</p>
+
+<p>The <a href="/scratchpad/install/direct">direct DMG download path</a>
+<em>does</em> hit Gatekeeper because browsers attach the attribute; workarounds
+are documented there if you prefer the visual install experience.</p>
+
+<p>See
+<a href="https://github.com/aaronmyatt/scratchpad/blob/main/backlog/decisions/decision-3%20-%20Skip-Apple-notarization-for-v1.md">decision-3</a>
+for the full distribution-strategy rationale.</p>
+
+<h2 id="updating">Updating</h2>
+
+<p>Re-run the same one-liner. The script replaces the existing
+<code class="language-plaintext highlighter-rouge">Scratchpad.app</code> in place. If Scratchpad was running during the upgrade,
+quit and relaunch it to pick up the new build (macOS keeps the old binary
+mapped in any process that’s already running).</p>
+
+<h2 id="uninstalling">Uninstalling</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">rm</span> <span class="nt">-rf</span> /Applications/Scratchpad.app ~/Applications/Scratchpad.app
+defaults delete com.aaronmyatt.scratchpad 2&gt;/dev/null  <span class="c"># forget PathInstaller flag</span>
+<span class="nb">rm</span> <span class="nt">-f</span> /usr/local/bin/sp ~/bin/sp                       <span class="c"># remove the sp symlink</span>
+</code></pre></div></div>
+
+
+      <footer class="site-footer">
+        
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.</span>
+      </footer>
+    </main>
+  </body>
+</html>

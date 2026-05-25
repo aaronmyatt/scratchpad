@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.9.0 -->
+<title>Quickstart | Scratchpad</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Quickstart" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Send dumps from any language. Pipe them through any shell command." />
+<meta name="twitter:description" property="og:description" content="Send dumps from any language. Pipe them through any shell command." />
+<link rel="canonical" href="http://localhost:4000/scratchpad/use/quickstart.html" />
+<meta property="og:url" content="http://localhost:4000/scratchpad/use/quickstart.html" />
+<meta property="og:site_name" content="Scratchpad" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Quickstart" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Send dumps from any language. Pipe them through any shell command.","headline":"Quickstart","url":"http://localhost:4000/scratchpad/use/quickstart.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="/scratchpad/assets/css/style.css?v=">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/scratchpad/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <a id="skip-to-content" href="#content">Skip to the content.</a>
+
+    <header class="page-header" role="banner">
+      <h1 class="project-name">Quickstart</h1>
+      <h2 class="project-tagline">Send dumps from any language. Pipe them through any shell command.</h2>
+      
+      
+    </header>
+
+    <main id="content" class="main-content" role="main">
+      <p>After <a href="/scratchpad/#install">installing</a>, Scratchpad lives in
+your menu bar. Left-click toggles the window; the window stays above
+other apps when shown and <strong>never steals focus</strong>.</p>
+
+<p>Default HTTP port is <code class="language-plaintext highlighter-rouge">8473</code>, loopback-only. Override with
+<code class="language-plaintext highlighter-rouge">SCRATCHPAD_PORT=…</code> in the environment.</p>
+
+<p><img src="/scratchpad/assets/screenshots/menu-bar.png" alt="Scratchpad menu-bar icon and window" /></p>
+
+<hr />
+
+<h2 id="send-a-dump-from-anywhere">Send a dump from anywhere</h2>
+
+<p>Two transports, same payload semantics — pick whichever is easiest.</p>
+
+<h3 id="sp-the-bundled-cli--shortest-form"><code class="language-plaintext highlighter-rouge">sp</code> (the bundled CLI — shortest form)</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> | sp
+sp ./payload.json
+sp <span class="nt">-m</span> <span class="s2">"inline literal"</span>
+</code></pre></div></div>
+
+<h3 id="bash--curl-http">Bash / curl (HTTP)</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> | curl <span class="nt">-X</span> POST <span class="nt">--data-binary</span> @- http://127.0.0.1:8473/dump
+</code></pre></div></div>
+
+<h3 id="bash--netcat-unix-socket--lowest-latency">Bash / netcat (UNIX socket — lowest latency)</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> | nc <span class="nt">-U</span> <span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/Library/Application Support/Scratchpad/dump.sock"</span>
+</code></pre></div></div>
+
+<h3 id="python-stdlib-only">Python (stdlib only)</h3>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">json</span><span class="p">,</span> <span class="n">urllib</span><span class="p">.</span><span class="n">request</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">({</span><span class="sh">"</span><span class="s">event</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">login</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">user</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">aaron</span><span class="sh">"</span><span class="p">}).</span><span class="nf">encode</span><span class="p">()</span>
+<span class="n">urllib</span><span class="p">.</span><span class="n">request</span><span class="p">.</span><span class="nf">urlopen</span><span class="p">(</span>
+    <span class="n">urllib</span><span class="p">.</span><span class="n">request</span><span class="p">.</span><span class="nc">Request</span><span class="p">(</span>
+        <span class="sh">"</span><span class="s">http://127.0.0.1:8473/dump</span><span class="sh">"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="sh">"</span><span class="s">POST</span><span class="sh">"</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<h3 id="nodejs-stdlib-only">Node.js (stdlib only)</h3>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">http</span> <span class="o">=</span> <span class="nf">require</span><span class="p">(</span><span class="dl">"</span><span class="s2">node:http</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="nx">http</span><span class="p">.</span><span class="nf">request</span><span class="p">({</span>
+  <span class="na">host</span><span class="p">:</span> <span class="dl">"</span><span class="s2">127.0.0.1</span><span class="dl">"</span><span class="p">,</span> <span class="na">port</span><span class="p">:</span> <span class="mi">8473</span><span class="p">,</span> <span class="na">path</span><span class="p">:</span> <span class="dl">"</span><span class="s2">/dump</span><span class="dl">"</span><span class="p">,</span> <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">POST</span><span class="dl">"</span><span class="p">,</span>
+<span class="p">}).</span><span class="nf">end</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">({</span> <span class="na">event</span><span class="p">:</span> <span class="dl">"</span><span class="s2">login</span><span class="dl">"</span><span class="p">,</span> <span class="na">user</span><span class="p">:</span> <span class="dl">"</span><span class="s2">aaron</span><span class="dl">"</span> <span class="p">}));</span>
+</code></pre></div></div>
+
+<h3 id="go-stdlib-only">Go (stdlib only)</h3>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+    <span class="s">"bytes"</span>
+    <span class="s">"net/http"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">body</span> <span class="o">:=</span> <span class="n">bytes</span><span class="o">.</span><span class="n">NewBufferString</span><span class="p">(</span><span class="s">`{"event":"login","user":"aaron"}`</span><span class="p">)</span>
+    <span class="n">http</span><span class="o">.</span><span class="n">Post</span><span class="p">(</span><span class="s">"http://127.0.0.1:8473/dump"</span><span class="p">,</span> <span class="s">"application/json"</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="ruby-stdlib-only">Ruby (stdlib only)</h3>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s2">"net/http"</span>
+
+<span class="no">Net</span><span class="o">::</span><span class="no">HTTP</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span>
+  <span class="no">URI</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8473/dump"</span><span class="p">),</span>
+  <span class="s1">'{"event":"login","user":"aaron"}'</span><span class="p">,</span>
+  <span class="s2">"Content-Type"</span> <span class="o">=&gt;</span> <span class="s2">"application/json"</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<h3 id="php-stdlib-only">PHP (stdlib only)</h3>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
+<span class="nv">$ctx</span> <span class="o">=</span> <span class="nb">stream_context_create</span><span class="p">([</span><span class="s2">"http"</span> <span class="o">=&gt;</span> <span class="p">[</span>
+    <span class="s2">"method"</span>  <span class="o">=&gt;</span> <span class="s2">"POST"</span><span class="p">,</span>
+    <span class="s2">"header"</span>  <span class="o">=&gt;</span> <span class="s2">"Content-Type: application/json</span><span class="se">\r\n</span><span class="s2">"</span><span class="p">,</span>
+    <span class="s2">"content"</span> <span class="o">=&gt;</span> <span class="nb">json_encode</span><span class="p">([</span><span class="s2">"event"</span> <span class="o">=&gt;</span> <span class="s2">"login"</span><span class="p">,</span> <span class="s2">"user"</span> <span class="o">=&gt;</span> <span class="s2">"aaron"</span><span class="p">]),</span>
+<span class="p">]]);</span>
+<span class="nb">file_get_contents</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8473/dump"</span><span class="p">,</span> <span class="kc">false</span><span class="p">,</span> <span class="nv">$ctx</span><span class="p">);</span>
+</code></pre></div></div>
+
+<h3 id="rust-with-reqwest-blocking">Rust (with reqwest, blocking)</h3>
+
+<div class="language-rust highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nn">reqwest</span><span class="p">::</span><span class="nn">blocking</span><span class="p">::</span><span class="nn">Client</span><span class="p">::</span><span class="nf">new</span><span class="p">()</span>
+        <span class="nf">.post</span><span class="p">(</span><span class="s">"http://127.0.0.1:8473/dump"</span><span class="p">)</span>
+        <span class="nf">.body</span><span class="p">(</span><span class="s">r#"{"event":"login","user":"aaron"}"#</span><span class="p">)</span>
+        <span class="nf">.send</span><span class="p">()</span>
+        <span class="nf">.ok</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="from-any-process-via-a-one-line-shell">From any process via a one-line shell</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>my-program 2&gt;&amp;1 | sp
+</code></pre></div></div>
+
+<hr />
+
+<h2 id="the-shell-input-bar">The shell input bar</h2>
+
+<p>The bottom of the window has a <code class="language-plaintext highlighter-rouge">$ </code> prompt. Type any shell command, press
+Enter — the most recent dump is piped to its stdin, and the output
+replaces the dump in the display.</p>
+
+<p><img src="/scratchpad/assets/screenshots/input-bar.png" alt="Input bar piping a dump through jq" /></p>
+
+<p>Examples after sending a JSON payload:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Command</th>
+      <th>What happens</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cat</code></td>
+      <td>Echoes the dump back, verbatim</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">jq .</code></td>
+      <td>Pretty-prints JSON</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">wc -c</code></td>
+      <td>Counts bytes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">grep error</code></td>
+      <td>Filters lines</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">xargs -n1 echo</code></td>
+      <td>One token per line</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Chain commands by running them in sequence — each command pipes the
+<strong>currently displayed</strong> event, not just the original dump. So <code class="language-plaintext highlighter-rouge">jq .data</code>
+followed by <code class="language-plaintext highlighter-rouge">grep id</code> runs grep against jq’s output, not the raw dump.</p>
+
+<h3 id="keyboard-shortcuts">Keyboard shortcuts</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">⌘L</code></td>
+      <td>Focus the input bar</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">⌘[</code> / <code class="language-plaintext highlighter-rouge">⌘]</code></td>
+      <td>Walk back / forward through dump + command history</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">↑</code> / <code class="language-plaintext highlighter-rouge">↓</code></td>
+      <td>Recall earlier input-bar commands (last 10k, persisted)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">⌃R</code></td>
+      <td>Search command history (substring, newest-first)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Esc</code></td>
+      <td>Close search overlay, then hide the window</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">⌘W</code></td>
+      <td>Hide the window (the app keeps running)</td>
+    </tr>
+    <tr>
+      <td>Cmd-Click Copy button</td>
+      <td>Copy the displayed content to the clipboard</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><img src="/scratchpad/assets/screenshots/history-search.png" alt="Ctrl-R history search overlay" /></p>
+
+<hr />
+
+<h2 id="threat-model">Threat model</h2>
+
+<p>The input bar runs arbitrary shell commands you typed against bytes you
+(or any local process) dumped. Defaults: <code class="language-plaintext highlighter-rouge">/bin/sh -c</code>, <code class="language-plaintext highlighter-rouge">$HOME</code> cwd,
+inherited env, 10 s timeout (override with <code class="language-plaintext highlighter-rouge">SCRATCHPAD_SHELL_TIMEOUT</code>),
+4 MiB output cap.</p>
+
+<p>Dumps are passed via stdin, never interpolated into the command string,
+so a malicious payload can’t escape into shell syntax. Full reasoning in
+<a href="https://github.com/aaronmyatt/scratchpad/blob/main/backlog/decisions/decision-2%20-%20Threat-model-and-safety-defaults-for-the-shell-input-bar.md">decision-2</a>.</p>
+
+<p>Single-user dev tooling assumption. Don’t run Scratchpad on a shared
+kiosk.</p>
+
+<hr />
+
+<h2 id="environment-variables">Environment variables</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Default</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_PORT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">8473</code></td>
+      <td>HTTP listener port (server) and target port (<code class="language-plaintext highlighter-rouge">sp</code> CLI).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_SOCKET_PATH</code></td>
+      <td><code class="language-plaintext highlighter-rouge">~/Library/Application Support/Scratchpad/dump.sock</code></td>
+      <td>UNIX socket path (server) and target (<code class="language-plaintext highlighter-rouge">sp</code> CLI).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_SHELL_TIMEOUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">10</code></td>
+      <td>Shell-command timeout in seconds.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SCRATCHPAD_HISTORY_FILE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">~/Library/Application Support/Scratchpad/input_history</code></td>
+      <td>Path to the input-bar command history file.</td>
+    </tr>
+  </tbody>
+</table>
+
+
+      <footer class="site-footer">
+        
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.</span>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.9.0 -->
+<title>Direct DMG download | Scratchpad</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Direct DMG download" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Download the DMG and work around the Gatekeeper prompt." />
+<meta name="twitter:description" property="og:description" content="Download the DMG and work around the Gatekeeper prompt." />
+<link rel="canonical" href="http://localhost:4000/scratchpad/install/direct.html" />
+<meta property="og:url" content="http://localhost:4000/scratchpad/install/direct.html" />
+<meta property="og:site_name" content="Scratchpad" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Direct DMG download" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Download the DMG and work around the Gatekeeper prompt.","headline":"Direct DMG download","url":"http://localhost:4000/scratchpad/install/direct.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="/scratchpad/assets/css/style.css?v=">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/scratchpad/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <a id="skip-to-content" href="#content">Skip to the content.</a>
+
+    <header class="page-header" role="banner">
+      <h1 class="project-name">Direct DMG download</h1>
+      <h2 class="project-tagline">Download the DMG and work around the Gatekeeper prompt.</h2>
+      
+      
+    </header>
+
+    <main id="content" class="main-content" role="main">
+      <blockquote>
+  <p><strong>Prefer <a href="/scratchpad/install/brew">brew</a> or
+<a href="/scratchpad/install/curl">curl</a> if you can</strong> — both bypass
+Gatekeeper entirely and produce the same app.</p>
+</blockquote>
+
+<h2 id="download-flow">Download flow</h2>
+
+<ol>
+  <li>Open the
+<a href="https://github.com/aaronmyatt/scratchpad/releases/latest">latest GitHub Release</a>.</li>
+  <li>Download <code class="language-plaintext highlighter-rouge">Scratchpad.dmg</code>.</li>
+  <li>Double-click the DMG to mount it.</li>
+  <li>Drag <code class="language-plaintext highlighter-rouge">Scratchpad.app</code> into <code class="language-plaintext highlighter-rouge">/Applications</code>.</li>
+  <li>Double-click <code class="language-plaintext highlighter-rouge">Scratchpad</code> in <code class="language-plaintext highlighter-rouge">/Applications</code>. On first launch,
+Gatekeeper will block it — see workarounds below.</li>
+</ol>
+
+<h2 id="gatekeeper-workaround-one-of-three">Gatekeeper workaround (one of three)</h2>
+
+<h3 id="macos-14-sonoma-right-click--open">macOS 14 (Sonoma): right-click → Open</h3>
+
+<p>The friendliest path. Right-click <code class="language-plaintext highlighter-rouge">Scratchpad</code> in <code class="language-plaintext highlighter-rouge">/Applications</code>, choose
+<strong>Open</strong>, then confirm in the dialog. macOS remembers the exemption;
+subsequent launches don’t prompt.</p>
+
+<h3 id="macos-15-sequoia-system-settings--open-anyway">macOS 15+ (Sequoia): System Settings → Open Anyway</h3>
+
+<p>Apple removed the right-click → Open shortcut for unsigned apps in
+Sequoia. Replacement flow:</p>
+
+<ol>
+  <li>Double-click <code class="language-plaintext highlighter-rouge">Scratchpad</code> in <code class="language-plaintext highlighter-rouge">/Applications</code>. You’ll see
+<em>“Scratchpad Not Opened”</em>.</li>
+  <li>Open <strong>System Settings</strong>.</li>
+  <li>Navigate to <strong>Privacy &amp; Security</strong>.</li>
+  <li>Scroll down to the <strong>Security</strong> subsection — there’ll be a note saying
+<em>“Scratchpad was blocked from use because it is not from an identified
+developer.”</em></li>
+  <li>Click <strong>“Open Anyway”</strong>. macOS may prompt for your admin password.</li>
+</ol>
+
+<p><img src="/scratchpad/assets/screenshots/gatekeeper-sequoia.png" alt="Sequoia 'Open Anyway' button in System Settings" /></p>
+
+<h3 id="terminal-strip-the-quarantine-flag-yourself">Terminal: strip the quarantine flag yourself</h3>
+
+<p>Fastest path for anyone comfortable with a terminal. This is exactly what
+Homebrew does for you on the brew path — no magic, no extra risk:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>xattr <span class="nt">-dr</span> com.apple.quarantine /Applications/Scratchpad.app
+</code></pre></div></div>
+
+<p>After this, the app launches normally with no further prompts.</p>
+
+<h2 id="why-this-happens">Why this happens</h2>
+
+<p>macOS attaches <code class="language-plaintext highlighter-rouge">com.apple.quarantine</code> to anything a browser downloads.
+Gatekeeper checks that attribute on first launch and blocks unsigned
+software from the internet by default — sensible behaviour.</p>
+
+<p>The brew and curl install paths avoid the warning not by bypassing the
+security check but by using a download mechanism that doesn’t set the
+quarantine flag in the first place. Exactly how rustup, deno, bun, and
+Homebrew itself install on macOS.</p>
+
+<p>See
+<a href="https://github.com/aaronmyatt/scratchpad/blob/main/backlog/decisions/decision-3%20-%20Skip-Apple-notarization-for-v1.md">decision-3</a>
+for the full distribution-strategy rationale (and why v1 doesn’t sign +
+notarize).</p>
+
+<h2 id="after-install">After install</h2>
+
+<p>On first launch, Scratchpad offers to install a small <code class="language-plaintext highlighter-rouge">sp</code> CLI shortcut
+so you can pipe text into the app from any terminal:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> | sp
+</code></pre></div></div>
+
+<p>Accept the prompt to add <code class="language-plaintext highlighter-rouge">sp</code> to <code class="language-plaintext highlighter-rouge">/usr/local/bin</code> (or <code class="language-plaintext highlighter-rouge">~/bin</code> if the
+former isn’t writable). You can decline and install it manually later via:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">ln</span> <span class="nt">-s</span> /Applications/Scratchpad.app/Contents/MacOS/sp /usr/local/bin/sp
+</code></pre></div></div>
+
+
+      <footer class="site-footer">
+        
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.</span>
+      </footer>
+    </main>
+  </body>
+</html>
