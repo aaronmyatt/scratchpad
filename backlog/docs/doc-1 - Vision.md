@@ -8,9 +8,9 @@ created_date: '2026-05-24 06:50'
 # Scratchpad — Vision
 
 A pinned desktop window that receives **arbitrary data dumps** from anywhere — HTTP, local
-socket, or a CLI pipe — and displays them as-is. Framework- and language-agnostic, akin to
-[Laradumps](https://laradumps.dev/) but without per-language SDKs as a hard requirement: any
-program that can write to stdout, open a socket, or POST JSON can dump to it.
+socket, a watched file, or a CLI pipe — and displays them as-is. Framework- and language-agnostic,
+akin to [Laradumps](https://laradumps.dev/) but without per-language SDKs as a hard requirement:
+any program that can write to stdout, write to a file, open a socket, or POST JSON can dump to it.
 
 ## Why
 When debugging, prototyping, or stitching tools together, developers constantly resort to
@@ -29,6 +29,10 @@ with up/down — turning the scratchpad into an exploratory REPL over whatever y
 1. **CLI pipe** — `echo 'data' | sp` sends stdin to the running window.
 2. **HTTP** — `POST` to a localhost-bound port; body shown as-is.
 3. **Local socket** — UNIX domain socket (or TCP fallback on Windows) for low-latency dumps.
+4. **Watched file** — write your payload to `/tmp/sp`; Scratchpad polls and ingests on change.
+   The container-friendly transport: a single bind-mount (`-v /tmp/sp:/tmp/sp`) lets any
+   process inside a sandbox dump without needing HTTP/socket reachability or any installed
+   client. Truncated at app launch to guarantee a clean slate.
 
 All transports treat payloads as opaque bytes/text by default. No schema requirement, no SDK.
 

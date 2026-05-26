@@ -17,7 +17,7 @@ Default HTTP port is `8473`, loopback-only. Override with
 
 ## Send a dump from anywhere
 
-Two transports, same payload semantics — pick whichever is easiest.
+Three transports, same payload semantics — pick whichever is easiest.
 
 ### `sp` (the bundled CLI — shortest form)
 
@@ -38,6 +38,17 @@ echo "hello" | curl -X POST --data-binary @- http://127.0.0.1:8473/dump
 ```bash
 echo "hello" | nc -U "$HOME/Library/Application Support/Scratchpad/dump.sock"
 ```
+
+### Bash / file (zero deps, container-friendly)
+
+```bash
+echo "hello" > /tmp/sp
+```
+
+Scratchpad polls `/tmp/sp` (200ms) and ingests any change. No installed
+client required, in any language — see the
+[Docker container](#from-inside-a-docker-container) section below for the
+bind-mount recipe.
 
 ### Python (stdlib only)
 
@@ -120,6 +131,45 @@ fn main() {
 my-program 2>&1 | sp
 ```
 
+### From inside a Docker container
+
+Loopback HTTP and the user-scoped UNIX socket are both awkward to reach from
+inside a container. The watched-file transport solves this with a single
+bind-mount:
+
+```yaml
+# docker-compose.yml
+services:
+  your-service:
+    volumes:
+      - /tmp/sp:/tmp/sp
+```
+
+```bash
+# or with `docker run`
+docker run -v /tmp/sp:/tmp/sp your-image
+```
+
+Then write to `/tmp/sp` from anywhere inside the container — bash, Node,
+Python, a framework hook, whatever:
+
+```bash
+echo "$payload" > /tmp/sp
+```
+
+```js
+require("node:fs").writeFileSync("/tmp/sp", JSON.stringify(payload));
+```
+
+```python
+open("/tmp/sp", "wb").write(payload)
+```
+
+Scratchpad **truncates `/tmp/sp` on every launch** so the host-side path is
+always present — you don't need to `touch /tmp/sp` before starting your
+container. The file is owned by your user (mode 0600), so other local users
+on the host can't inject dumps into your session.
+
 ---
 
 ## The shell input bar
@@ -184,3 +234,7 @@ kiosk.
 | `SCRATCHPAD_SOCKET_PATH` | `~/Library/Application Support/Scratchpad/dump.sock` | UNIX socket path (server) and target (`sp` CLI). |
 | `SCRATCHPAD_SHELL_TIMEOUT` | `10` | Shell-command timeout in seconds. |
 | `SCRATCHPAD_HISTORY_FILE` | `~/Library/Application Support/Scratchpad/input_history` | Path to the input-bar command history file. |
+
+The watched-file transport is fixed at `/tmp/sp` by design — one well-known
+path, no configuration, designed for bind-mounting into containers where a
+host-derived env var wouldn't be portable anyway.

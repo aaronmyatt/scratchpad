@@ -5,10 +5,10 @@ description: A pinned, menu-bar-resident dump receiver for macOS.
 ---
 
 A pinned, menu-bar-resident desktop window for macOS that receives arbitrary
-data dumps from anywhere — HTTP, local socket, or a CLI pipe — and lets you
-pipe the most recent dump through any shell command. No language SDKs, no
-config. If your program can `POST`, write to stdout, or open a socket, it
-can talk to Scratchpad.
+data dumps from anywhere — HTTP, local socket, a watched file, or a CLI pipe —
+and lets you pipe the most recent dump through any shell command. No language
+SDKs, no config. If your program can `POST`, write to a file, write to stdout,
+or open a socket, it can talk to Scratchpad.
 
 ![Scratchpad receiving a JSON dump]({{ '/assets/screenshots/hero.png' | relative_url }})
 
@@ -55,7 +55,7 @@ launch* — easily worked around.
 
 ## Send a dump from anywhere
 
-Two transports, same payload semantics. Bytes go in, bytes appear in the
+Three transports, same payload semantics. Bytes go in, bytes appear in the
 window. No headers, no schema.
 
 ```bash
@@ -64,6 +64,9 @@ echo "hello" | sp
 
 # Bash — raw curl (no install required beyond curl)
 echo "hello" | curl -X POST --data-binary @- http://127.0.0.1:8473/dump
+
+# Bash — write to /tmp/sp (zero deps; ideal inside Docker containers)
+echo "hello" > /tmp/sp
 ```
 
 ```python

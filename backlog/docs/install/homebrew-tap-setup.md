@@ -26,113 +26,87 @@ brew install aaronmyatt/scratchpad/scratchpad
 On GitHub: create a new **public** repo named exactly
 `homebrew-scratchpad` under `aaronmyatt`
 (`https://github.com/aaronmyatt/homebrew-scratchpad`). Repo can be
-empty — Homebrew bootstraps the layout.
+empty — `scripts/release.sh` populates the Cask file from a template
+the first time it runs.
+
+### Local clone layout
+
+We clone the tap *inside* the scratchpad repo at `./tap` (gitignored).
+This keeps the tap clone next to `scripts/release.sh` that operates on
+it, without the two repos' git histories interfering. The convention
+is just "where contributors expect to find it" — nothing structural
+depends on the path, and `SCRATCHPAD_TAP_DIR` overrides it.
 
 ```bash
-# Clone the empty repo locally
-gh repo clone aaronmyatt/homebrew-scratchpad
-cd homebrew-scratchpad
-
-# Casks live under Casks/ by convention
-mkdir Casks
+# From the root of the scratchpad checkout:
+git clone git@github.com:aaronmyatt/homebrew-scratchpad.git tap
 ```
 
-Why a separate repo (not a folder inside `scratchpad/`): Homebrew's
-auto-tap convention is hardcoded to `homebrew-<name>` repos. There's no
-way to point it at a subfolder of another repo. The tap repo can stay
-tiny — just the Cask formula and a README.
+That's the whole bootstrap. The first `./scripts/release.sh vX.Y.Z`
+run renders `tap/Casks/scratchpad.rb` from
+[`scripts/scratchpad.cask.rb.template`](../../../scripts/scratchpad.cask.rb.template),
+commits it to the tap, and pushes — no hand-copy step needed.
+
+Why a separate GitHub repo (even though the local clone is nested):
+Homebrew's auto-tap convention is hardcoded to look for
+`github.com/<user>/homebrew-<name>` when you `brew tap user/name`.
+There's no way to point it at a subfolder of another repo, no way to
+use a non-`homebrew-` prefix. The tap repo can stay tiny — just the
+generated Cask formula and a README.
 
 ---
 
-## 2. Cut the first release of Scratchpad
+## 2. Cut the first release
 
-Before publishing the Cask, there needs to be a real GitHub Release of
-Scratchpad that the Cask can point at. Follow
-[`backlog/docs/release-runbook.md`](../release-runbook.md) end-to-end:
-
-1. `git tag v0.1.0 && git push origin v0.1.0`
-2. `./scripts/build-tarball.sh` — produces `Scratchpad-arm64.tar.gz`
-   and `.sha256` under `build/`
-3. `./scripts/build-dmg.sh` — produces `Scratchpad.dmg`
-4. `gh release create v0.1.0 build/Scratchpad-arm64.tar.gz \
-       build/Scratchpad-arm64.tar.gz.sha256 build/Scratchpad.dmg \
-       --title "v0.1.0" --generate-notes`
-
-Note the sha256 it prints — you'll paste it into the Cask in step 3.
-
----
-
-## 3. Write the Cask
-
-Create `Casks/scratchpad.rb` in the tap repo with this content. Bump
-`version` and `sha256` on each release.
-
-```ruby
-# Homebrew Cask formula for Scratchpad.
-#
-# Cask DSL reference: https://docs.brew.sh/Cask-Cookbook
-#
-# Why a Cask and not a Formula:
-#   - Casks distribute pre-built macOS .app bundles via brew's
-#     /Applications copy + quarantine-strip pipeline.
-#   - Formulas build from source — overkill for a binary distribution.
-#
-# Why this is in a personal tap, not homebrew/cask main:
-#   - The main cask repo requires Apple signing + notarization, which
-#     v1 deliberately skips (see decision-3 in the scratchpad repo).
-#   - Personal taps have no such policy; brew's standard quarantine
-#     strip still gives users a Gatekeeper-free install.
-
-cask "scratchpad" do
-  # Bump on each release. `arch` is intentionally hard-coded to arm64
-  # for v1 (Apple-Silicon-only per decision-1); add Intel by switching
-  # to a universal tarball later.
-  version "0.1.0"
-  sha256  "PASTE_SHA256_FROM_BUILD_TARBALL_SH_OUTPUT_HERE"
-
-  url      "https://github.com/aaronmyatt/scratchpad/releases/download/v#{version}/Scratchpad-arm64.tar.gz"
-  name     "Scratchpad"
-  desc     "Pinned, menu-bar-resident dump receiver for macOS"
-  homepage "https://github.com/aaronmyatt/scratchpad"
-
-  # The `app` stanza handles:
-  #   - Copying Scratchpad.app into /Applications
-  #   - Stripping the com.apple.quarantine xattr (the friction-free
-  #     Gatekeeper bypass that justifies this whole install path)
-  #   - Tracking the install in brew's manifest for clean uninstalls
-  app "Scratchpad.app"
-
-  # First-launch behaviour (PathInstaller, TASK-29 in the scratchpad
-  # repo) handles the `sp` CLI on PATH — no postflight needed here.
-
-  # Uninstall: brew handles app removal automatically via the `app`
-  # stanza; we just clean up UserDefaults so a reinstall starts fresh.
-  zap trash: [
-    "~/Library/Preferences/com.aaronmyatt.scratchpad.plist",
-    "~/Library/Application Support/Scratchpad",
-  ]
-end
-```
-
-Substitute `PASTE_SHA256_FROM_BUILD_TARBALL_SH_OUTPUT_HERE` with the
-sha256 printed by `./scripts/build-tarball.sh` in step 2.
-
----
-
-## 4. Push the tap
+One command does everything: tags, builds, publishes the GitHub
+Release, *and* populates the tap from the Cask template.
 
 ```bash
-git add Casks/scratchpad.rb
-git commit -m "Scratchpad v0.1.0"
-git push
+./scripts/release.sh v0.1.0
 ```
 
-Tap is live the moment the push lands. No GitHub Pages, no Actions, no
-publishing step.
+The script's step 6 renders
+[`scripts/scratchpad.cask.rb.template`](../../../scripts/scratchpad.cask.rb.template)
+into your nested `tap/Casks/scratchpad.rb`, commits, and pushes to the
+homebrew-scratchpad repo. First-run output includes the full additive
+diff for the newly-created Cask file — review it, confirm, done.
+
+See [`release-runbook.md`](../release-runbook.md) for the full
+breakdown of what each step does, or run with `--dry-run` first to
+preview without executing.
 
 ---
 
-## 5. Verify on a clean install
+## 3. The Cask formula (template + render)
+
+The Cask's canonical source lives in *this* repo at
+[`scripts/scratchpad.cask.rb.template`](../../../scripts/scratchpad.cask.rb.template),
+not in the tap. `scripts/release.sh` renders the template into
+`tap/Casks/scratchpad.rb` on every release, substituting two
+placeholders:
+
+- `{{VERSION}}` → the bare semver (e.g. `0.1.0`)
+- `{{SHA256}}` → the sha256 of the published `Scratchpad-arm64.tar.gz`
+
+Why a template-render rather than editing the tap's Cask in place:
+
+- **No bootstrap step** — an empty tap clone is a valid starting state.
+  Step 1's `git clone` is everything you need before running
+  `release.sh`.
+- **No fragile sed regex** — the placeholders are unique strings,
+  resistant to formatting changes that would break an in-place
+  `version "..."` / `sha256 "..."` rewrite.
+- **Single source of truth** — formula structure lives version-
+  controlled alongside the rest of the project. The tap is downstream;
+  hand-edits to the tap's Cask get overwritten on the next release
+  (intentionally — change the template, not the rendered output).
+
+To evolve the formula (add stanzas, change URL pattern, adjust zap
+targets), edit the template. The next release picks up the change.
+
+---
+
+## 4. Verify on a clean install
 
 ```bash
 # In a fresh terminal (so the tap is fetched from scratch):
@@ -160,18 +134,20 @@ brew upgrade scratchpad   # no-op when already at latest
 
 ## Subsequent releases (the lightweight loop)
 
-Once the tap exists, every release follows this rhythm:
+Once the tap exists, every release is a single command:
 
-1. Tag + build + publish the release in the scratchpad repo (steps in
-   [`release-runbook.md`](../release-runbook.md)).
-2. Edit `Casks/scratchpad.rb` in the tap repo:
-   - Bump `version` to the new tag (without the leading `v`).
-   - Replace `sha256` with the value printed by `build-tarball.sh`.
-3. `git commit -m "Scratchpad vX.Y.Z" && git push` in the tap repo.
+```bash
+./scripts/release.sh vX.Y.Z
+```
 
-That's the entire release loop for the brew install path. The curl |
-bash installer (TASK-34) requires zero changes per release — it
-resolves the latest tag via GitHub's `/releases/latest/download/`
+The script handles the tap bump in step 6 (see
+[`release-runbook.md`](../release-runbook.md) for the full breakdown):
+it `git pull --ff-only`s the tap, sed-rewrites the `version` and
+`sha256` lines in `tap/Casks/scratchpad.rb`, shows the diff, and
+commits + pushes — all without leaving the scratchpad checkout.
+
+The curl | bash installer (TASK-34) requires zero changes per release
+— it resolves the latest tag via GitHub's `/releases/latest/download/`
 redirect.
 
 ---

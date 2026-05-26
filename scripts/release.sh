@@ -53,12 +53,20 @@ TARBALL_NAME="${APP_NAME}-arm64.tar.gz"
 DMG_NAME="${APP_NAME}.dmg"
 BUILD_DIR="${PROJECT_ROOT}/build"
 
-# Tap repo location. Override via env var when the tap clone lives somewhere
-# other than the conventional sibling-directory layout. ../homebrew-scratchpad
-# matches what you get after a vanilla `gh repo clone aaronmyatt/homebrew-scratchpad`
-# from the Scratchpad checkout's parent directory.
-TAP_REPO_DIR="${SCRATCHPAD_TAP_DIR:-${PROJECT_ROOT}/../homebrew-scratchpad}"
+# Tap repo location. Defaults to a nested clone at ./tap (gitignored) so the
+# tap repo lives alongside this script for proximity, without polluting the
+# parent's git history. To bootstrap the convention:
+#   git clone git@github.com:aaronmyatt/homebrew-scratchpad.git tap
+# Override via SCRATCHPAD_TAP_DIR when the tap clone lives elsewhere
+# (e.g. a sibling directory, a shared dev dir, or a CI workspace).
+TAP_REPO_DIR="${SCRATCHPAD_TAP_DIR:-${PROJECT_ROOT}/tap}"
 TAP_CASK_PATH="Casks/scratchpad.rb"
+
+# Cask template — single source of truth for the formula's structure.
+# Rendered into the tap on every release with {{VERSION}} and {{SHA256}}
+# substituted. To change the formula's shape, edit the template; the next
+# release publishes the change. Hand-edits to the tap copy are clobbered.
+CASK_TEMPLATE="${SCRIPT_DIR}/scratchpad.cask.rb.template"
 
 # GitHub coordinates for the Scratchpad repo (the one this script lives in).
 # Derived from the `origin` remote so a fork/rename Just Works without an
@@ -158,11 +166,14 @@ fi
 gh auth status >/dev/null 2>&1 || fail "gh CLI is not authenticated. Run: gh auth login"
 ok "gh authenticated"
 
-# Tap repo present + writable.
+# Tap repo present + writable. We don't check for the Cask file's existence
+# here — the script writes it from the template (step 6), so an empty/fresh
+# tap clone is a valid starting point. That lets bootstrap-via-first-release
+# work: clone the empty tap, run release.sh, the script populates everything.
 [[ -d "${TAP_REPO_DIR}/.git" ]] \
     || fail "Tap repo not found at ${TAP_REPO_DIR}. Set SCRATCHPAD_TAP_DIR to the clone path."
-[[ -f "${TAP_REPO_DIR}/${TAP_CASK_PATH}" ]] \
-    || fail "Cask file not found at ${TAP_REPO_DIR}/${TAP_CASK_PATH}. Bootstrap the tap first per backlog/docs/install/homebrew-tap-setup.md"
+[[ -f "${CASK_TEMPLATE}" ]] \
+    || fail "Cask template missing at ${CASK_TEMPLATE}. Restore it from git."
 ok "tap repo at ${TAP_REPO_DIR}"
 
 # Tap repo also clean — we'll be mutating it, so refuse to clobber WIP.
@@ -262,55 +273,60 @@ else
     fi
 fi
 
-# ── 6. Bump the Homebrew tap ─────────────────────────────────────────────────
-step "6/6  Bump homebrew tap"
+# ── 6. Render Cask template into the tap and push ───────────────────────────
+step "6/6  Render Cask + push to tap"
 
 CASK_FILE="${TAP_REPO_DIR}/${TAP_CASK_PATH}"
 
 # Pull latest in the tap repo so we don't conflict on push. `git pull` here
-# is safe because we already verified the tap repo is clean.
+# is safe because we already verified the tap repo is clean in preflight.
 run git -C "${TAP_REPO_DIR}" pull --ff-only
 
-# In-place edit: rewrite the `version` and `sha256` lines.
-# sed -i differs between BSD (macOS) and GNU; BSD wants an explicit empty
-# string after -i. We're macOS-only per decision-1, so use the BSD form.
-# Pattern matches the formula's documented shape:
-#   version "0.1.0"
-#   sha256  "abc123..."
-# Allow flexible whitespace between the keyword and the value so contributors
-# can reformat without breaking the script.
+# Render the template. We substitute {{VERSION}} and {{SHA256}} via sed —
+# straightforward because the placeholders are unique strings unlikely to
+# appear elsewhere in the formula. Rendering (rather than in-place editing
+# of an existing Cask) has two benefits:
+#   1. No bootstrap step — an empty tap is a valid starting state.
+#   2. The Cask's structure can evolve in the template (add stanzas,
+#      change URL pattern) without breaking a fragile sed regex.
+#
+# Trade-off: hand-edits to tap/Casks/scratchpad.rb get clobbered on the
+# next release. That's the intended behaviour — the tap is a publish
+# target, not an editable artifact. To change the formula, edit
+# scripts/scratchpad.cask.rb.template (THE canonical source) in this repo.
 if "${DRY_RUN}"; then
-    info "would update ${CASK_FILE}:"
-    info "  version → \"${VERSION_BARE}\""
-    info "  sha256  → \"${SHA_HEX}\""
+    info "would render ${CASK_TEMPLATE}"
+    info "         → ${CASK_FILE}"
+    info "  {{VERSION}} → \"${VERSION_BARE}\""
+    info "  {{SHA256}}  → \"${SHA_HEX}\""
 else
-    sed -i '' -E \
-        -e "s/^([[:space:]]*version[[:space:]]+)\"[^\"]*\"/\1\"${VERSION_BARE}\"/" \
-        -e "s/^([[:space:]]*sha256[[:space:]]+)\"[^\"]*\"/\1\"${SHA_HEX}\"/" \
-        "${CASK_FILE}"
+    # mkdir -p so a fresh tap repo (no Casks/ dir yet) bootstraps cleanly.
+    mkdir -p "$(dirname "${CASK_FILE}")"
+    sed -e "s/{{VERSION}}/${VERSION_BARE}/g" \
+        -e "s/{{SHA256}}/${SHA_HEX}/g" \
+        "${CASK_TEMPLATE}" > "${CASK_FILE}"
 
-    # Sanity check the result — if sed didn't match (e.g. the formula was
-    # reformatted into a different shape), the file would be unchanged and
-    # we'd silently push a no-op. Verify the new sha256 actually landed.
-    if ! grep -q "\"${SHA_HEX}\"" "${CASK_FILE}"; then
-        fail "Failed to update sha256 in ${CASK_FILE}. Check the version/sha256 line format."
+    # Verify the placeholders all got substituted — catches a template
+    # edit that introduced a new placeholder we don't know how to fill.
+    if grep -q '{{[A-Z_]*}}' "${CASK_FILE}"; then
+        UNFILLED=$(grep -o '{{[A-Z_]*}}' "${CASK_FILE}" | sort -u | tr '\n' ' ')
+        fail "Cask still contains unsubstituted placeholders: ${UNFILLED}"
     fi
-    if ! grep -q "\"${VERSION_BARE}\"" "${CASK_FILE}"; then
-        fail "Failed to update version in ${CASK_FILE}."
-    fi
-    ok "Cask file rewritten"
+    ok "Cask rendered to ${CASK_FILE#${TAP_REPO_DIR}/}"
 fi
 
-# Show the diff so the user sees what's about to be committed.
+# Show the diff so the user sees what's about to be committed. For a
+# bootstrap release (Cask file freshly created), this is a big additive
+# diff; for a version bump it's just the version + sha256 lines.
 if ! "${DRY_RUN}"; then
     info "tap diff:"
-    git -C "${TAP_REPO_DIR}" --no-pager diff -- "${TAP_CASK_PATH}" | sed 's/^/  /'
+    git -C "${TAP_REPO_DIR}" add "${TAP_CASK_PATH}"
+    git -C "${TAP_REPO_DIR}" --no-pager diff --cached -- "${TAP_CASK_PATH}" | sed 's/^/  /'
 fi
 
 # Only commit + push if something actually changed.
 if "${DRY_RUN}" || [[ -n "$(git -C "${TAP_REPO_DIR}" status --porcelain -- "${TAP_CASK_PATH}")" ]]; then
     confirm "Commit + push tap bump for Scratchpad ${VERSION}?"
-    run git -C "${TAP_REPO_DIR}" add "${TAP_CASK_PATH}"
     run git -C "${TAP_REPO_DIR}" commit -m "Scratchpad ${VERSION}"
     run git -C "${TAP_REPO_DIR}" push
     ok "tap repo updated and pushed"

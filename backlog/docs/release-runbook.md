@@ -33,8 +33,15 @@ and it picks up where it left off. Add `--dry-run` to print the planned
 steps without executing, or `--yes` to skip the confirmation prompts
 (intended for CI).
 
-Tap repo location: defaults to `../homebrew-scratchpad` (sibling
-directory). Override via `SCRATCHPAD_TAP_DIR=/path/to/tap`.
+Tap repo location: defaults to `./tap` (a gitignored nested clone of
+`aaronmyatt/homebrew-scratchpad` inside this repo). Bootstrap once with:
+
+```bash
+git clone git@github.com:aaronmyatt/homebrew-scratchpad.git tap
+```
+
+Override the path via `SCRATCHPAD_TAP_DIR=/path/to/tap` if you keep the
+clone elsewhere.
 
 The manual steps below are kept as reference for understanding what the
 script does, and as a fallback when something genuinely needs a one-off.
@@ -142,11 +149,11 @@ First-time setup of the tap repo is documented in
 that once before the first release. The per-release loop below assumes
 the tap already exists.
 
-In the separate `aaronmyatt/homebrew-scratchpad` repo, edit
-`Casks/scratchpad.rb`:
+In the tap repo clone (conventionally at `./tap` inside the scratchpad
+checkout):
 
 ```bash
-cd /path/to/homebrew-scratchpad
+cd tap   # or wherever your SCRATCHPAD_TAP_DIR points
 ```
 
 Two lines to change in `Casks/scratchpad.rb`:

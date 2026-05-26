@@ -1,0 +1,55 @@
+# Homebrew Cask formula template for Scratchpad.
+#
+# THIS IS A TEMPLATE — DO NOT EDIT THE COPY IN THE TAP REPO.
+#
+# The canonical source is scripts/scratchpad.cask.rb.template in the
+# aaronmyatt/scratchpad repo. scripts/release.sh renders this template
+# into tap/Casks/scratchpad.rb on every release, substituting:
+#
+#   {{VERSION}}  → the bare semver (e.g. 0.1.0)
+#   {{SHA256}}   → the sha256 of the published Scratchpad-arm64.tar.gz
+#
+# To change the formula's structure (add stanzas, change URL pattern,
+# adjust zap targets, etc.), edit THIS file. The next release publishes
+# the updated formula automatically. Hand-edits to the tap copy will be
+# overwritten on the next release.
+#
+# Cask DSL reference: https://docs.brew.sh/Cask-Cookbook
+#
+# Why a Cask and not a Formula:
+#   - Casks distribute pre-built macOS .app bundles via brew's
+#     /Applications copy + quarantine-strip pipeline.
+#   - Formulas build from source — overkill for a binary distribution.
+#
+# Why this is in a personal tap, not homebrew/cask main:
+#   - The main cask repo requires Apple signing + notarization, which
+#     v1 deliberately skips (see decision-3 in the scratchpad repo).
+#   - Personal taps have no such policy; brew's standard quarantine
+#     strip still gives users a Gatekeeper-free install.
+
+cask "scratchpad" do
+  version "{{VERSION}}"
+  sha256  "{{SHA256}}"
+
+  url      "https://github.com/aaronmyatt/scratchpad/releases/download/v#{version}/Scratchpad-arm64.tar.gz"
+  name     "Scratchpad"
+  desc     "Pinned, menu-bar-resident dump receiver for macOS"
+  homepage "https://github.com/aaronmyatt/scratchpad"
+
+  # The `app` stanza handles:
+  #   - Copying Scratchpad.app into /Applications
+  #   - Stripping the com.apple.quarantine xattr (the friction-free
+  #     Gatekeeper bypass that justifies this whole install path)
+  #   - Tracking the install in brew's manifest for clean uninstalls
+  app "Scratchpad.app"
+
+  # First-launch behaviour (PathInstaller, TASK-29 in the scratchpad
+  # repo) handles the `sp` CLI on PATH — no postflight needed here.
+
+  # Uninstall: brew handles app removal automatically via the `app`
+  # stanza; we just clean up UserDefaults so a reinstall starts fresh.
+  zap trash: [
+    "~/Library/Preferences/com.aaronmyatt.scratchpad.plist",
+    "~/Library/Application Support/Scratchpad",
+  ]
+end

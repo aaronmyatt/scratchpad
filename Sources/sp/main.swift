@@ -46,6 +46,11 @@ func printUsage() {
     Environment:
       SCRATCHPAD_PORT            Override the default HTTP port (8473)
       SCRATCHPAD_SOCKET_PATH     Override the default UDS path
+
+    Alternative (no sp install required):
+      Scratchpad also watches /tmp/sp — any process can deliver a dump by
+      writing to that file:  echo 'data' > /tmp/sp
+      Ideal when sp isn't installed (e.g. inside Docker containers).
     """
     print(msg)
 }

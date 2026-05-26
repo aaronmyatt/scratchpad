@@ -62,7 +62,7 @@ other apps when shown and <strong>never steals focus</strong>.</p>
 
 <h2 id="send-a-dump-from-anywhere">Send a dump from anywhere</h2>
 
-<p>Two transports, same payload semantics — pick whichever is easiest.</p>
+<p>Three transports, same payload semantics — pick whichever is easiest.</p>
 
 <h3 id="sp-the-bundled-cli--shortest-form"><code class="language-plaintext highlighter-rouge">sp</code> (the bundled CLI — shortest form)</h3>
 
@@ -80,6 +80,16 @@ sp <span class="nt">-m</span> <span class="s2">"inline literal"</span>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> | nc <span class="nt">-U</span> <span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/Library/Application Support/Scratchpad/dump.sock"</span>
 </code></pre></div></div>
+
+<h3 id="bash--file-zero-deps-container-friendly">Bash / file (zero deps, container-friendly)</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"hello"</span> <span class="o">&gt;</span> /tmp/sp
+</code></pre></div></div>
+
+<p>Scratchpad polls <code class="language-plaintext highlighter-rouge">/tmp/sp</code> (200ms) and ingests any change. No installed
+client required, in any language — see the
+<a href="#from-inside-a-docker-container">Docker container</a> section below for the
+bind-mount recipe.</p>
 
 <h3 id="python-stdlib-only">Python (stdlib only)</h3>
 
@@ -154,6 +164,40 @@ sp <span class="nt">-m</span> <span class="s2">"inline literal"</span>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>my-program 2&gt;&amp;1 | sp
 </code></pre></div></div>
+
+<h3 id="from-inside-a-docker-container">From inside a Docker container</h3>
+
+<p>Loopback HTTP and the user-scoped UNIX socket are both awkward to reach from
+inside a container. The watched-file transport solves this with a single
+bind-mount:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># docker-compose.yml</span>
+<span class="na">services</span><span class="pi">:</span>
+  <span class="na">your-service</span><span class="pi">:</span>
+    <span class="na">volumes</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">/tmp/sp:/tmp/sp</span>
+</code></pre></div></div>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># or with `docker run`</span>
+docker run <span class="nt">-v</span> /tmp/sp:/tmp/sp your-image
+</code></pre></div></div>
+
+<p>Then write to <code class="language-plaintext highlighter-rouge">/tmp/sp</code> from anywhere inside the container — bash, Node,
+Python, a framework hook, whatever:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"</span><span class="nv">$payload</span><span class="s2">"</span> <span class="o">&gt;</span> /tmp/sp
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">require</span><span class="p">(</span><span class="dl">"</span><span class="s2">node:fs</span><span class="dl">"</span><span class="p">).</span><span class="nf">writeFileSync</span><span class="p">(</span><span class="dl">"</span><span class="s2">/tmp/sp</span><span class="dl">"</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">(</span><span class="nx">payload</span><span class="p">));</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">open</span><span class="p">(</span><span class="sh">"</span><span class="s">/tmp/sp</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">wb</span><span class="sh">"</span><span class="p">).</span><span class="nf">write</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Scratchpad <strong>truncates <code class="language-plaintext highlighter-rouge">/tmp/sp</code> on every launch</strong> so the host-side path is
+always present — you don’t need to <code class="language-plaintext highlighter-rouge">touch /tmp/sp</code> before starting your
+container. The file is owned by your user (mode 0600), so other local users
+on the host can’t inject dumps into your session.</p>
 
 <hr />
 
@@ -296,6 +340,10 @@ kiosk.</p>
     </tr>
   </tbody>
 </table>
+
+<p>The watched-file transport is fixed at <code class="language-plaintext highlighter-rouge">/tmp/sp</code> by design — one well-known
+path, no configuration, designed for bind-mounting into containers where a
+host-derived env var wouldn’t be portable anyway.</p>
 
 
       <footer class="site-footer">

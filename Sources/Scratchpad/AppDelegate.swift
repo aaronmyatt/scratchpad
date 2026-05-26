@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var httpReceiver: DumpReceiver?
     private var socketReceiver: UnixSocketReceiver?
+    private var fileWatchReceiver: FileWatchReceiver?
     private var escMonitor: Any?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -82,6 +83,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             FileHandle.standardError.write(Data(
                 "Scratchpad: failed to start socket receiver: \(error)\n".utf8
+            ))
+        }
+
+        // Start the file-watch receiver (TASK-46). This is the container-
+        // friendly transport: any process that can write to /tmp/sp gets a
+        // dump. start() also truncates the file so each launch begins with
+        // a clean slate. Failure here is non-fatal — usually it's because
+        // /tmp/sp couldn't be opened for write, which we've already logged
+        // from inside start() itself.
+        do {
+            let f = FileWatchReceiver()
+            try f.start()
+            fileWatchReceiver = f
+        } catch {
+            FileHandle.standardError.write(Data(
+                "Scratchpad: failed to start file-watch receiver: \(error)\n".utf8
             ))
         }
 

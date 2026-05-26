@@ -50,10 +50,10 @@
 
     <main id="content" class="main-content" role="main">
       <p>A pinned, menu-bar-resident desktop window for macOS that receives arbitrary
-data dumps from anywhere — HTTP, local socket, or a CLI pipe — and lets you
-pipe the most recent dump through any shell command. No language SDKs, no
-config. If your program can <code class="language-plaintext highlighter-rouge">POST</code>, write to stdout, or open a socket, it
-can talk to Scratchpad.</p>
+data dumps from anywhere — HTTP, local socket, a watched file, or a CLI pipe —
+and lets you pipe the most recent dump through any shell command. No language
+SDKs, no config. If your program can <code class="language-plaintext highlighter-rouge">POST</code>, write to a file, write to stdout,
+or open a socket, it can talk to Scratchpad.</p>
 
 <p><img src="/scratchpad/assets/screenshots/hero.png" alt="Scratchpad receiving a JSON dump" /></p>
 
@@ -98,7 +98,7 @@ launch</em> — easily worked around.</p>
 
 <h2 id="send-a-dump-from-anywhere">Send a dump from anywhere</h2>
 
-<p>Two transports, same payload semantics. Bytes go in, bytes appear in the
+<p>Three transports, same payload semantics. Bytes go in, bytes appear in the
 window. No headers, no schema.</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Bash — pipe via the bundled sp CLI (shortest)</span>
@@ -106,6 +106,9 @@ window. No headers, no schema.</p>
 
 <span class="c"># Bash — raw curl (no install required beyond curl)</span>
 <span class="nb">echo</span> <span class="s2">"hello"</span> | curl <span class="nt">-X</span> POST <span class="nt">--data-binary</span> @- http://127.0.0.1:8473/dump
+
+<span class="c"># Bash — write to /tmp/sp (zero deps; ideal inside Docker containers)</span>
+<span class="nb">echo</span> <span class="s2">"hello"</span> <span class="o">&gt;</span> /tmp/sp
 </code></pre></div></div>
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># Python (stdlib only)

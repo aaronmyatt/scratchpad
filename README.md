@@ -1,10 +1,10 @@
 # Scratchpad
 
 A pinned, menu-bar-resident desktop window for macOS that receives arbitrary
-data dumps from anywhere — HTTP, local socket, or a CLI pipe — and lets you
-pipe the most recent dump through any shell command. No language SDKs, no
-config. If your program can `POST`, write to stdout, or open a socket, it can
-talk to Scratchpad.
+data dumps from anywhere — HTTP, local socket, a watched file, or a CLI pipe —
+and lets you pipe the most recent dump through any shell command. No language
+SDKs, no config. If your program can `POST`, write to a file, write to stdout,
+or open a socket, it can talk to Scratchpad.
 
 Inspired by [Laradumps](https://laradumps.dev/), but transport-first and
 language-agnostic.
@@ -106,7 +106,7 @@ decision-3):
 
 ## Send a dump from anywhere
 
-Two transports, same payload semantics — pick whichever is easiest:
+Three transports, same payload semantics — pick whichever is easiest:
 
 1. **HTTP** — `POST` to `http://127.0.0.1:8473/dump` with the dump as the body.
    Works from any language with a stdlib HTTP client.
@@ -114,6 +114,11 @@ Two transports, same payload semantics — pick whichever is easiest:
    `~/Library/Application Support/Scratchpad/dump.sock`, write bytes, half-close.
    No HTTP framing, lower latency. The `sp` CLI prefers this and falls back
    to HTTP automatically; from the shell, `nc -U <path>` is the equivalent.
+3. **Watched file** — write your payload to `/tmp/sp`. Scratchpad polls the
+   path (200ms) and ingests any change. Zero dependencies in the writer —
+   `echo "$msg" > /tmp/sp` is the whole integration. Designed for Docker
+   containers and other sandboxes where reaching the loopback HTTP port or
+   the user-scoped socket is awkward.
 
 No headers, no schema. Bytes go in, bytes appear in the window.
 
@@ -125,6 +130,11 @@ echo 'hello' | curl -X POST --data-binary @- http://127.0.0.1:8473/dump
 ### Bash / netcat (UNIX socket — lowest latency)
 ```bash
 echo 'hello' | nc -U "$HOME/Library/Application Support/Scratchpad/dump.sock"
+```
+
+### Bash / file (zero deps, container-friendly)
+```bash
+echo 'hello' > /tmp/sp
 ```
 
 ### `sp` (the bundled CLI — shortest form)
@@ -225,6 +235,48 @@ zero-config choices.)
 my-program 2>&1 | sp
 ```
 
+### From inside a Docker container
+
+The HTTP and socket transports are awkward to reach from inside a container —
+loopback means the container, not the host, and the socket lives in a
+user-scoped directory. The watched-file transport sidesteps both. Bind-mount
+the host's `/tmp/sp` into the container at the same path:
+
+```yaml
+# docker-compose.yml
+services:
+  your-service:
+    volumes:
+      - /tmp/sp:/tmp/sp
+```
+
+```bash
+# docker run
+docker run -v /tmp/sp:/tmp/sp your-image
+```
+
+Then write to it from anywhere inside the container, in any language. No
+`curl`, no `nc`, no SDK install:
+
+```bash
+echo "$payload" > /tmp/sp
+```
+
+```js
+// Node.js
+require("node:fs").writeFileSync("/tmp/sp", JSON.stringify(payload))
+```
+
+```python
+# Python
+open("/tmp/sp", "wb").write(payload)
+```
+
+Scratchpad **truncates `/tmp/sp` on every launch**, so the host-side path is
+always present and the bind-mount works without a prior `touch /tmp/sp`. The
+file is owned by the user who launched Scratchpad (mode 0600), so other local
+users can't inject dumps into your session.
+
 ---
 
 ## The shell input bar
@@ -281,6 +333,11 @@ Single-user dev tooling assumption. Don't run Scratchpad on a shared kiosk.
 | `SCRATCHPAD_SOCKET_PATH`    | `~/Library/Application Support/Scratchpad/dump.sock` | UNIX socket path (server) and target (`sp` CLI). |
 | `SCRATCHPAD_SHELL_TIMEOUT`  | `10`   | Shell-command timeout in seconds. |
 | `SCRATCHPAD_HISTORY_FILE`   | `~/Library/Application Support/Scratchpad/input_history` | Path to the input-bar command history file. |
+
+The watched-file transport is fixed at `/tmp/sp` by design — one well-known
+path, no configuration, designed for bind-mounting into containers where a
+host-derived env var wouldn't be portable anyway. The file is truncated to
+zero bytes on every Scratchpad launch.
 
 ---
 
