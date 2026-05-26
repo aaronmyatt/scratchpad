@@ -45,6 +45,43 @@ enum PathInstaller {
     /// or may not be writable — the fallback path below handles that.
     private static let primaryInstallPath = "/usr/local/bin/sp"
 
+    /// Walk `$PATH` looking for an executable named `sp`. Returns the first
+    /// match, or nil. Same semantics as `which(1)` but done in-process so we
+    /// avoid spawning a Process just to read its stdout.
+    ///
+    /// Used as the primary short-circuit: if `sp` is *anywhere* on PATH
+    /// (Homebrew's `binary` stanza puts it at `/opt/homebrew/bin/sp` on
+    /// Apple Silicon, `/usr/local/bin/sp` on Intel; a curl-install or manual
+    /// `ln -s` might put it elsewhere), there's no point asking the user to
+    /// install it again. Adding it via TASK-47 was prompted by users who
+    /// installed via brew (Cask `binary` stanza handles the symlink) but
+    /// still saw the PathInstaller dialog on first launch — noisy and
+    /// confusing.
+    ///
+    /// Note: this checks `$PATH` *as inherited by Scratchpad at launch*,
+    /// which for a GUI app is whatever launchd seeded it with (the user's
+    /// login PATH plus macOS defaults). It does not see PATH entries added
+    /// by interactive shell rc files unless those flow through launchd's
+    /// envvar layer too. For our case (brew + the macOS default
+    /// `/usr/local/bin`), that's enough.
+    // Visibility: internal (not private) so PathInstallerTests can exercise
+    // the $PATH-walking behaviour without spinning up a real .app bundle.
+    static func spOnPath() -> String? {
+        guard let raw = ProcessInfo.processInfo.environment["PATH"] else { return nil }
+        let fm = FileManager.default
+        for component in raw.split(separator: ":") {
+            // The dir entry may be empty (e.g. trailing `:` in PATH) — skip those
+            // rather than testing for "/sp", which would resolve to the root.
+            let dir = String(component)
+            guard !dir.isEmpty else { continue }
+            let candidate = (dir as NSString).appendingPathComponent("sp")
+            if fm.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
     /// Fallback when /usr/local/bin can't be written. ~/bin is the
     /// conventional per-user bin dir; we'll create it if missing and print
     /// PATH guidance because it isn't on the default PATH.
@@ -92,9 +129,19 @@ enum PathInstaller {
         // bail silently — we'd otherwise create a broken symlink.
         guard FileManager.default.isExecutableFile(atPath: bundledSp) else { return }
 
-        // Case 1: something already at /usr/local/bin/sp. Don't overwrite —
-        // could be from a manual install, an old Homebrew, or even *us* from
-        // a prior install on a different bundle path.
+        // Case 0 (TASK-47): sp is already somewhere on $PATH — typically
+        // /opt/homebrew/bin/sp from the Homebrew Cask's `binary` stanza.
+        // Silent no-op + record didPrompt so we never check again. Whoever
+        // put sp there owns it; we don't poke at it.
+        if spOnPath() != nil {
+            defaults.set(true, forKey: didPromptKey)
+            return
+        }
+
+        // Case 1: something already at /usr/local/bin/sp specifically (an
+        // older manual install at the canonical location that isn't on the
+        // current process's PATH — rare but possible). Don't overwrite;
+        // surface the conflict if it's not ours.
         if FileManager.default.fileExists(atPath: primaryInstallPath) {
             handleExisting(bundledSp: bundledSp)
             defaults.set(true, forKey: didPromptKey)

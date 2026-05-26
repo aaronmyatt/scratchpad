@@ -43,8 +43,20 @@ cask "scratchpad" do
   #   - Tracking the install in brew's manifest for clean uninstalls
   app "Scratchpad.app"
 
-  # First-launch behaviour (PathInstaller, TASK-29 in the scratchpad
-  # repo) handles the `sp` CLI on PATH — no postflight needed here.
+  # The `binary` stanza symlinks the bundled sp CLI into brew's bin dir
+  # (/opt/homebrew/bin on Apple Silicon, /usr/local/bin on Intel) so it's
+  # immediately on PATH after `brew install` — no need to open the app
+  # first. `appdir` is brew's variable for /Applications (or wherever the
+  # user's APPDIR is set), so this symlink survives both default and
+  # custom-prefix installs.
+  #
+  # First-launch PathInstaller (TASK-29 in the scratchpad repo) detects
+  # an existing `sp` on PATH and silently no-ops, so the two paths
+  # coexist cleanly: brew-installed users get sp immediately via this
+  # stanza; users installing via the curl|bash or direct-download paths
+  # still get the PathInstaller dialog on first launch.
+  # Ref: https://docs.brew.sh/Cask-Cookbook#stanza-binary
+  binary "#{appdir}/Scratchpad.app/Contents/MacOS/sp"
 
   # Uninstall: brew handles app removal automatically via the `app`
   # stanza; we just clean up UserDefaults so a reinstall starts fresh.
