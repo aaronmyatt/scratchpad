@@ -175,7 +175,48 @@ install -m 755 "${SP_BIN}"         "${MACOS_DIR}/sp"
 #   docs: https://developer.apple.com/library/archive/documentation/GraphicsAnimation/Conceptual/HighResolutionOSX/Optimizing/Optimizing.html
 : # no-op — explicit placeholder so the script section reads as intended
 
-# ── 7. Done ─────────────────────────────────────────────────────────────────
+# ── 7. Ad-hoc codesign the bundle ───────────────────────────────────────────
+# WHY this matters:
+#   SwiftPM ad-hoc-signs the individual Mach-O binaries (linker-signed) so
+#   they can launch on Apple Silicon — but that doesn't seal the *bundle*.
+#   Without bundle sealing (no Contents/_CodeSignature/CodeResources file,
+#   Info.plist not bound to a signature), macOS Sequoia's Gatekeeper rejects
+#   the .app with the dreaded "damaged and can't be opened" dialog — no
+#   right-click → Open bypass, no System Settings escape. We hit this in
+#   the v0.1.1 release; v0.1.2 fixes it by sealing the bundle here.
+#
+# WHY ad-hoc (`-s -`) rather than a Developer ID cert:
+#   v1 deliberately skips notarization per decision-3. Ad-hoc signing
+#   produces a valid (if non-Apple-trusted) signature that Sequoia accepts
+#   for the bundle-integrity check; users still see "unidentified developer"
+#   on the direct-download path (browser-set quarantine triggers Gatekeeper's
+#   trust check), but they can bypass *that* via right-click → Open or our
+#   documented xattr strip. The brew + curl paths don't see Gatekeeper at all.
+#
+# WHY signing innermost-first instead of `codesign --deep`:
+#   `--deep` for signing is deprecated (it still works but emits a warning).
+#   The correct modern pattern is to sign nested code first, then the
+#   container — that's three commands here, no warning, equivalent result.
+#
+# Refs:
+#   - codesign(1):    https://ss64.com/mac/codesign.html
+#   - Sealed resources: https://developer.apple.com/library/archive/technotes/tn2206/_index.html
+#   - decision-3 (no notarization): backlog/decisions/decision-3
+echo "==> Ad-hoc signing bundle"
+codesign --force -s - "${MACOS_DIR}/${APP_NAME}" 2>&1 | sed 's/^/    /'
+codesign --force -s - "${MACOS_DIR}/sp"          2>&1 | sed 's/^/    /'
+codesign --force -s - "${APP_DIR}"               2>&1 | sed 's/^/    /'
+
+# Verify what we produced. If sealing didn't take, fail loudly here rather
+# than pushing a broken artifact through the rest of the release pipeline.
+SEAL_STATUS="$(codesign -dv "${APP_DIR}" 2>&1 | grep -E 'Sealed Resources' || true)"
+if [[ "${SEAL_STATUS}" != *"version=2"* ]]; then
+    echo "Bundle seal verification failed; codesign output above." >&2
+    echo "Expected 'Sealed Resources version=2 rules=...'; got: ${SEAL_STATUS}" >&2
+    exit 1
+fi
+
+# ── 8. Done ─────────────────────────────────────────────────────────────────
 echo "==> Built ${APP_DIR}"
 echo "    Open with: open '${APP_DIR}'"
 echo "    Or copy to /Applications: cp -R '${APP_DIR}' /Applications/"
