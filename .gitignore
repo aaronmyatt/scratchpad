@@ -2,6 +2,7 @@
 /.build
 /build
 /tap          # nested clone of github.com/aaronmyatt/homebrew-scratchpad — separate repo, kept here for proximity to release.sh
+tap/
 /Packages
 xcuserdata/
 DerivedData/
