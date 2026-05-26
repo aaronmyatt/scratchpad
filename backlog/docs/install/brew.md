@@ -34,9 +34,11 @@ brew install scratchpad
    [`github.com/aaronmyatt/scratchpad/releases/latest`](https://github.com/aaronmyatt/scratchpad/releases/latest).
 3. Verifies the sha256 against the value pinned in the Cask formula.
 4. Extracts `Scratchpad.app` into `/Applications`.
-5. **Strips the `com.apple.quarantine` extended attribute** — this is
-   the standard brew install behaviour and what makes the app launch
-   with no Gatekeeper prompt.
+5. **Strips the `com.apple.quarantine` extended attribute** via the
+   Cask's `postflight` block — that's what makes the app launch with
+   no Gatekeeper prompt. (Note: this isn't automatic brew Cask
+   behaviour; the postflight is in our Cask formula specifically.
+   Without it, macOS 15 would block first launch.)
 
 ## Updating
 

@@ -116,7 +116,7 @@ brew install scratchpad
 # Verify
 ls /Applications/Scratchpad.app                                          # → exists
 xattr -p com.apple.quarantine /Applications/Scratchpad.app 2>&1 | head -1
-# → "No such xattr: com.apple.quarantine" (brew stripped it)
+# → "No such xattr: com.apple.quarantine" (our Cask's postflight stripped it)
 
 open /Applications/Scratchpad.app
 # → menu-bar icon appears; first-launch PathInstaller dialog offers

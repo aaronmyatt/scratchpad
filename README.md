@@ -24,9 +24,9 @@ All produce the same app — pick whichever fits your habits.
 brew install aaronmyatt/scratchpad/scratchpad
 ```
 
-Homebrew strips the macOS quarantine attribute automatically, so the app
-launches with no Gatekeeper prompt. *(Tap repo lands with TASK-32; this
-one-liner becomes live then.)*
+Our Cask strips the macOS quarantine attribute in a postflight step, so
+the app launches with no Gatekeeper prompt. *(Tap repo lands with
+TASK-32; this one-liner becomes live then.)*
 
 ### 2. curl | bash (also friction-free)
 

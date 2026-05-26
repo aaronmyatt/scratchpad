@@ -64,8 +64,9 @@ Accept the prompt — by default it installs to `/usr/local/bin/sp` (or
 
 Homebrew downloads release artifacts via curl (not via a browser), so the
 `com.apple.quarantine` extended attribute that triggers Gatekeeper never
-gets attached. Plus, brew explicitly strips the attribute on install as
-belt-and-braces.
+gets attached. Plus, our Cask explicitly strips the attribute on install
+via a `postflight` block — brew Cask doesn't do this by default since
+~2020, so the formula carries the strip itself.
 
 The
 [direct DMG download path]({{ '/install/direct' | relative_url }})

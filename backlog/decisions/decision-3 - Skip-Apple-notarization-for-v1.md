@@ -12,11 +12,15 @@ silently. After TASK-28/29/30 landed (unsigned .app, sp PathInstaller, DMG
 script), revisiting the cost-vs-friction tradeoff for v1 surfaced three
 distribution paths that don't require Apple notarization:
 
-1. **Homebrew tap (Cask):** Homebrew automatically strips the
-   `com.apple.quarantine` xattr after download, so Gatekeeper never enters the
-   picture for `brew install`ed artifacts. The main `homebrew/cask` repo
-   requires signing, but a *personal tap* (e.g. `github.com/aaronmyatt/
-   homebrew-scratchpad`) does not.
+1. **Homebrew tap (Cask):** Our Cask's `postflight` block strips the
+   `com.apple.quarantine` xattr after install, so Gatekeeper never enters the
+   picture for `brew install`ed artifacts. (Note: brew Cask itself defaults
+   to *quarantining* installed apps since ~2020; the strip is something our
+   Cask actively does, not a brew default — this was a documentation
+   misunderstanding fixed during the v0.1.3 release.) The main
+   `homebrew/cask` repo rejects this pattern and requires signed apps; a
+   personal tap (e.g. `github.com/aaronmyatt/homebrew-scratchpad`) has no
+   such policy and the postflight strip is the accepted norm there.
 2. **curl | bash installer:** `curl` does not set the quarantine xattr (only
    browsers and a few sandboxed downloaders do). A shell installer that fetches
    a tarball and copies it into `/Applications` produces an app launchable
