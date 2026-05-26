@@ -58,16 +58,37 @@ func printUsage() {
 // ── Resolve input source ──────────────────────────────────────────────────────
 
 let args = CommandLine.arguments
-let payload: Data
+let inputBytes: Data?   // nil = "no payload, just launch the app and exit"
 
 switch args.count {
 case 1:
-    guard let stdin = try? FileHandle.standardInput.readToEnd(), !stdin.isEmpty else {
-        warn("sp: no input on stdin (did you mean to pipe something in?)")
-        printUsage()
-        exit(2)
+    // Distinguish three flavours of zero-arg invocation:
+    //   1. Bare `sp` from a terminal      → no pipe, no args. Treat as
+    //      "wake the app up" and exit. Without this branch, the readToEnd
+    //      call below would block forever waiting for Ctrl-D — a hostile
+    //      UX for someone who just typed `sp` to see what it does.
+    //   2. `echo foo | sp` (or `sp < file`) → stdin is a pipe/file, read it.
+    //   3. `: | sp` (empty pipe)          → readable but yields zero bytes;
+    //      fall through to the existing "no input" error.
+    //
+    // isatty(0) is the POSIX way to tell (1) from (2)/(3): it returns 1
+    // when fd 0 is connected to a terminal device, 0 when it's a pipe or
+    // a redirected file. Same idiom every well-behaved CLI uses (git, jq,
+    // ripgrep, …) to decide whether to read stdin.
+    //
+    // Refs:
+    //   - isatty(3):                https://man.openbsd.org/isatty.3
+    //   - "When is stdin a tty?":   https://www.gnu.org/software/libc/manual/html_node/Is-It-a-Terminal.html
+    if isatty(fileno(stdin)) != 0 {
+        inputBytes = nil   // signals the autostart-only path below
+    } else {
+        guard let bytes = try? FileHandle.standardInput.readToEnd(), !bytes.isEmpty else {
+            warn("sp: no input on stdin (did you mean to pipe something in?)")
+            printUsage()
+            exit(2)
+        }
+        inputBytes = bytes
     }
-    payload = stdin
 
 case 2:
     let arg = args[1]
@@ -82,14 +103,14 @@ case 2:
     }
     let url = URL(fileURLWithPath: arg)
     do {
-        payload = try Data(contentsOf: url)
+        inputBytes = try Data(contentsOf: url)
     } catch {
         warn("sp: cannot read '\(arg)': \(error.localizedDescription)")
         exit(1)
     }
 
 case 3 where args[1] == "-m":
-    payload = Data(args[2].utf8)
+    inputBytes = Data(args[2].utf8)
 
 default:
     warn("sp: invalid arguments")
@@ -216,6 +237,23 @@ func sendViaHTTP(port: UInt16, payload: Data) async -> String? {
     } catch {
         return error.localizedDescription
     }
+}
+
+// ── Bare `sp` with no payload: just wake the app and exit ───────────────────
+//
+// Reached only for `sp` typed into an interactive terminal (no args, stdin is
+// a tty). Treat it as "make sure Scratchpad is running" — the same nudge an
+// onboarding user would otherwise have to discover via Finder. We don't
+// bother probing the receivers first; LaunchServices treats `open -gb` on an
+// already-running app as a no-op, so the call is cheap and idempotent.
+//
+// `_ =` because the failure mode here (app not installed) is identical to
+// the post-transport fallthrough below — but with no payload to surface,
+// there's nothing to retry, so we exit 0 either way and let the user notice
+// that no menu-bar icon appeared.
+guard let payload = inputBytes else {
+    _ = launchScratchpadApp()
+    exit(0)
 }
 
 // ── First attempt: try both transports without touching the app ──────────────
