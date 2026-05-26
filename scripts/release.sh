@@ -186,7 +186,16 @@ ok "tap repo clean"
 step "2/6  Tag ${VERSION}"
 
 if git rev-parse "${VERSION}" >/dev/null 2>&1; then
-    EXISTING_SHA="$(git rev-parse "${VERSION}")"
+    # `^{commit}` dereferences an annotated-tag object to its target commit.
+    # Without it, `git rev-parse v0.1.5` returns the tag-object SHA (a
+    # different kind of object than a commit) and the comparison below
+    # would always fail on the second run of this script, even when the
+    # tag legitimately points at HEAD. Lightweight tags wouldn't have
+    # this problem, but `git tag -a` below always creates annotated tags.
+    # Bit us during the v0.1.5 cut when the first run failed on the
+    # gh-release-create step and the re-run refused to skip the tag step.
+    # Ref: https://git-scm.com/docs/gitrevisions#Documentation/gitrevisions.txt-emltrevgtemegemHEADv1510em
+    EXISTING_SHA="$(git rev-parse "${VERSION}^{commit}")"
     HEAD_SHA="$(git rev-parse HEAD)"
     if [[ "${EXISTING_SHA}" != "${HEAD_SHA}" ]]; then
         fail "Tag ${VERSION} already exists but points at ${EXISTING_SHA}, not HEAD (${HEAD_SHA}). Delete the tag or release from the tagged commit."
