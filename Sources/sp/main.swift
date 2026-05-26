@@ -177,11 +177,7 @@ let socketPath: String = {
     return appSupport.appending(path: "Scratchpad/dump.sock").path
 }()
 
-if sendViaUnixSocket(path: socketPath, payload: payload) {
-    exit(0)
-}
-
-// ── Fall back to HTTP ─────────────────────────────────────────────────────────
+// ── HTTP fallback (wrapped so we can retry it after an autostart) ────────────
 
 let port: UInt16 = {
     if let raw = ProcessInfo.processInfo.environment["SCRATCHPAD_PORT"],
@@ -191,26 +187,124 @@ let port: UInt16 = {
     return 8473
 }()
 
-guard let url = URL(string: "http://127.0.0.1:\(port)/dump") else {
-    warn("sp: invalid URL (port \(port))")
-    exit(1)
-}
-
-var request = URLRequest(url: url)
-request.httpMethod = "POST"
-request.httpBody = payload
-request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-request.setValue("\(payload.count)", forHTTPHeaderField: "Content-Length")
-
-do {
-    let (_, response) = try await URLSession.shared.data(for: request)
-    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-    if !(200..<300).contains(status) {
-        warn("sp: Scratchpad replied HTTP \(status)")
-        exit(1)
+/// POST `payload` to the app's HTTP receiver. Returns nil on success, or a
+/// human-readable error string on transport/HTTP failure so the caller can
+/// decide whether to fall back to autostart-and-retry or surface the error.
+///
+/// Why a single throwing helper rather than inline: we now call this twice
+/// (once before autostart, once after) and duplicating the URLSession setup
+/// would invite drift. Kept as a free async function — no shared state needed.
+///
+/// Refs:
+///   - URLSession.data(for:): https://developer.apple.com/documentation/foundation/urlsession/3767353-data
+func sendViaHTTP(port: UInt16, payload: Data) async -> String? {
+    guard let url = URL(string: "http://127.0.0.1:\(port)/dump") else {
+        return "invalid URL (port \(port))"
     }
-} catch {
-    warn("sp: could not reach Scratchpad — tried \(socketPath) and 127.0.0.1:\(port).")
-    warn("sp: Is the app running? (\(error.localizedDescription))")
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.httpBody = payload
+    request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+    request.setValue("\(payload.count)", forHTTPHeaderField: "Content-Length")
+    do {
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if !(200..<300).contains(status) {
+            return "Scratchpad replied HTTP \(status)"
+        }
+        return nil
+    } catch {
+        return error.localizedDescription
+    }
+}
+
+// ── First attempt: try both transports without touching the app ──────────────
+
+if sendViaUnixSocket(path: socketPath, payload: payload) {
+    exit(0)
+}
+
+if await sendViaHTTP(port: port, payload: payload) == nil {
+    exit(0)
+}
+
+// ── Autostart: neither transport reachable, so try to launch the app ─────────
+//
+// Why this exists: a first-time pipe like `echo wat | sp` is the most common
+// onboarding moment — the user has installed Scratchpad but hasn't double-
+// clicked it yet. Bailing with "Is the app running?" turns the very first
+// invocation into a chore. Auto-launching makes `sp` Just Work.
+//
+// Focus discipline (see project memory "No focus theft, ever"): we use
+// `open -g` so the app launches in the background without activating.
+// `-b com.aaronmyatt.scratchpad` locates the bundle by id, which works
+// whether the user installed it in /Applications, ~/Applications, or
+// anywhere LaunchServices has indexed.
+//
+// We deliberately do NOT pass `-j` (launch hidden). `-j` puts the app into
+// NSApplication.isHidden state, which suppresses `orderFrontRegardless()`
+// on its windows — every subsequent dump would arrive, the receiver would
+// call WindowController.show(), but nothing would appear on screen until
+// the user manually clicked the status item. We let LaunchServices create
+// the window normally; `-g` already keeps it from stealing focus.
+//
+// We deliberately *don't* fork-and-forget: the user piped data and expects
+// it delivered, so we wait for the receivers to come up and retry once. If
+// the app isn't installed at all (open returns nonzero) we fall through to
+// the original error path so the user sees the actionable message.
+//
+// Refs:
+//   - open(1):                       https://ss64.com/mac/open.html
+//   - LSUIElement / accessory apps:  https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/LaunchServicesKeys.html
+
+/// Launch Scratchpad.app via `open -gjb <bundle-id>`. Returns true if
+/// LaunchServices accepted the request (the app exists and was started or
+/// was already running), false otherwise.
+func launchScratchpadApp() -> Bool {
+    let p = Process()
+    // /usr/bin/open is part of the macOS base install and never moves, so a
+    // hardcoded path is safer than relying on $PATH (which a stripped env
+    // might not include).
+    p.launchPath = "/usr/bin/open"
+    p.arguments = ["-gb", "com.aaronmyatt.scratchpad"]
+    do {
+        try p.run()
+        p.waitUntilExit()
+        return p.terminationStatus == 0
+    } catch {
+        return false
+    }
+}
+
+/// Poll for the receivers to come online and deliver `payload`. Returns true
+/// on successful delivery, false if we time out. Cold launch of an
+/// LSUIElement app on Apple Silicon is typically <500 ms; we give it up to
+/// ~3 seconds before giving up so a busy machine doesn't fail spuriously.
+func deliverAfterLaunch(payload: Data) async -> Bool {
+    // 30 attempts × 100 ms = 3 s cap. Linear backoff is fine for this short
+    // window — the work being polled is "did the listener bind a port yet",
+    // which transitions from never-going-to-succeed to always-succeeds in a
+    // single moment, so exponential backoff buys us nothing.
+    for _ in 0..<30 {
+        // 100 ms in nanoseconds. Task.sleep takes UInt64 nanos.
+        // Ref: https://developer.apple.com/documentation/swift/task/sleep(nanoseconds:)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        if sendViaUnixSocket(path: socketPath, payload: payload) { return true }
+        if await sendViaHTTP(port: port, payload: payload) == nil { return true }
+    }
+    return false
+}
+
+if launchScratchpadApp() {
+    if await deliverAfterLaunch(payload: payload) {
+        exit(0)
+    }
+    warn("sp: launched Scratchpad but receivers didn't come up within 3s.")
+    warn("sp: tried \(socketPath) and 127.0.0.1:\(port).")
     exit(1)
 }
+
+// ── Final fallthrough: app not installed (or LaunchServices doesn't know it) ─
+warn("sp: could not reach Scratchpad — tried \(socketPath) and 127.0.0.1:\(port).")
+warn("sp: Is the app installed? (open -b com.aaronmyatt.scratchpad failed)")
+exit(1)

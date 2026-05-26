@@ -46,8 +46,23 @@ final class WindowController {
     /// set by `WindowConfigurator` keeps it pinned), but does NOT make it key
     /// and does NOT activate Scratchpad. Whatever app the user is in keeps
     /// keyboard focus.
-    /// Ref: https://developer.apple.com/documentation/appkit/nswindow/1419495-orderfrontregardless
+    ///
+    /// If the whole app is in the hidden state (e.g. someone launched it via
+    /// `open -j`, or invoked NSApp.hide elsewhere), `orderFrontRegardless()`
+    /// alone is a no-op: AppKit suppresses per-window reveal while
+    /// `NSApp.isHidden` is true. We unhide first, but via
+    /// `unhideWithoutActivation()` rather than `unhide(_:)` — the latter
+    /// activates the app and would violate the TASK-19 no-focus-theft
+    /// invariant. The non-activating variant just brings windows back onto
+    /// the screen without changing the active app.
+    ///
+    /// Refs:
+    ///   - orderFrontRegardless:       https://developer.apple.com/documentation/appkit/nswindow/1419495-orderfrontregardless
+    ///   - unhideWithoutActivation:    https://developer.apple.com/documentation/appkit/nsapplication/1428740-unhidewithoutactivation
     func show() {
+        if NSApp.isHidden {
+            NSApp.unhideWithoutActivation()
+        }
         window?.orderFrontRegardless()
     }
 
