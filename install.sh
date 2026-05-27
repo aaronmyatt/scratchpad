@@ -232,7 +232,8 @@ cat <<EOF
 
   On first launch you'll be offered to install the ${C_BOLD}sp${C_RESET} CLI on your PATH.
 
-  After that, pipe anything from any terminal:
+  After that, verify the install and pipe data from any terminal:
+      sp --version
       echo "hello" | sp
 
 EOF

@@ -42,6 +42,7 @@ func printUsage() {
       sp <path>                  Read a file and send its bytes
       sp -m <string>             Send a literal string
       sp -h, --help              Show this help
+      sp -V, --version           Show the installed version and exit
 
     Environment:
       SCRATCHPAD_PORT            Override the default HTTP port (8473)
@@ -53,6 +54,34 @@ func printUsage() {
       Ideal when sp isn't installed (e.g. inside Docker containers).
     """
     print(msg)
+}
+
+// Print "sp <semver>" — or "sp dev" when running outside a bundle (e.g.
+// `swift run sp`, or `.build/release/sp` invoked directly during development).
+//
+// Why Bundle.main rather than walking up to ../../Info.plist by hand:
+//   When this binary lives at Scratchpad.app/Contents/MacOS/sp, Foundation
+//   detects the standard .app bundle layout and Bundle.main resolves to
+//   the enclosing .app — so its infoDictionary is the .app's Info.plist
+//   automatically. No path-string surgery required, and the source of truth
+//   stays single: build-app.sh writes CFBundleShortVersionString into the
+//   plist (see scripts/build-app.sh:128), and we read it back through the
+//   same key. Outside a bundle, infoDictionary is nil-or-empty for this key
+//   and we fall back to "dev".
+//
+// Refs:
+//   - Bundle.main:                https://developer.apple.com/documentation/foundation/bundle/1409655-main
+//   - CFBundleShortVersionString: https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring
+//   - .app bundle anatomy:        https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html
+func printVersion() {
+    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    // Treat empty string the same as missing — defends against a broken
+    // build-app.sh that interpolated an unset shell var into the plist.
+    if let v = version, !v.isEmpty {
+        print("sp \(v)")
+    } else {
+        print("sp dev")
+    }
 }
 
 // ── Resolve input source ──────────────────────────────────────────────────────
@@ -94,6 +123,13 @@ case 2:
     let arg = args[1]
     if arg == "-h" || arg == "--help" {
         printUsage()
+        exit(0)
+    }
+    // --version / -V is a near-universal CLI convention (git, curl, jq, …).
+    // Plain "sp <semver>" output is grep-friendly: `sp --version | grep -q '^sp [0-9]'`
+    // is a one-line install-success probe baked into install.sh's next-steps.
+    if arg == "-V" || arg == "--version" {
+        printVersion()
         exit(0)
     }
     if arg.hasPrefix("-") {

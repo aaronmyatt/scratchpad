@@ -61,7 +61,18 @@ RES_DIR="${CONTENTS}/Resources"
 # This becomes both CFBundleShortVersionString (user-visible "1.2.3") and
 # CFBundleVersion (build number — App Store requires monotonically increasing,
 # but for our distribution this is informational only).
-VERSION="$(git -C "${PROJECT_ROOT}" describe --tags --always 2>/dev/null || echo "0.0.0-dev")"
+#
+# Strip any leading "v" because:
+#   - git tag convention is `vMAJOR.MINOR.PATCH` (so `git describe` returns
+#     "v0.1.5-3-gabcdef") but Apple's CFBundleShortVersionString spec says
+#     the value should be numeric (digits + dots). Keeping the `v` makes
+#     plutil tolerate-but-flag the value as non-canonical.
+#   - `sp --version` output (TASK-49) follows git/curl/jq idiom of bare
+#     semver, no `v` prefix. Stripping here keeps the Info.plist and the
+#     CLI output in lockstep without sp doing post-hoc string surgery.
+# Ref: https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring
+RAW_VERSION="$(git -C "${PROJECT_ROOT}" describe --tags --always 2>/dev/null || echo "0.0.0-dev")"
+VERSION="${RAW_VERSION#v}"
 
 echo "==> Building ${APP_NAME} ${VERSION}"
 

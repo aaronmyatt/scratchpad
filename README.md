@@ -143,6 +143,7 @@ echo 'hello' > /tmp/sp
 echo 'hello' | sp
 sp ./payload.json
 sp -m 'inline literal'
+sp --version          # which Scratchpad am I running?
 ```
 
 After `swift build`, symlink it onto PATH:
