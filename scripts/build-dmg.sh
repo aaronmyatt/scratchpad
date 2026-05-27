@@ -93,7 +93,7 @@ rm -f "${DMG_PATH}"
 #                format choice and the OS floor are independent — HFS+ images
 #                also mount on every modern macOS so there's no benefit to
 #                switching.
-echo "==> hdiutil create ${DMG_PATH#${PROJECT_ROOT}/}"
+echo "==> hdiutil create ${DMG_PATH#"${PROJECT_ROOT}"/}"
 hdiutil create \
     -volname "${VOL_NAME}" \
     -srcfolder "${STAGE}" \

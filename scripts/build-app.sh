@@ -101,7 +101,7 @@ SP_BIN="${BIN_PATH}/sp"
 # Wipe a previous bundle so stale files (e.g. an old Info.plist key, or a
 # previously bundled icon) don't survive a rebuild and silently affect
 # behaviour. `rm -rf` of a path we just constructed under build/ is safe.
-echo "==> Assembling ${APP_DIR#${PROJECT_ROOT}/}"
+echo "==> Assembling ${APP_DIR#"${PROJECT_ROOT}"/}"
 rm -rf "${APP_DIR}"
 mkdir -p "${MACOS_DIR}" "${RES_DIR}"
 

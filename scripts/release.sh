@@ -321,7 +321,7 @@ else
         UNFILLED=$(grep -o '{{[A-Z_]*}}' "${CASK_FILE}" | sort -u | tr '\n' ' ')
         fail "Cask still contains unsubstituted placeholders: ${UNFILLED}"
     fi
-    ok "Cask rendered to ${CASK_FILE#${TAP_REPO_DIR}/}"
+    ok "Cask rendered to ${CASK_FILE#"${TAP_REPO_DIR}"/}"
 fi
 
 # Show the diff so the user sees what's about to be committed. For a

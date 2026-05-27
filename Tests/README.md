@@ -46,9 +46,10 @@ What it guards against — backstory for each test is inlined as comments in
 
 See [`backlog/tasks/task-48`](../backlog/tasks/) for the full incident history.
 
-## Pre-release wiring (TASK-39)
+## Pre-release wiring
 
-`install.bats` is designed to be runnable standalone today, and to drop into
-`scripts/preflight-release.sh` once [TASK-39](../backlog/tasks/) implements
-that chain. No changes to this file needed when that lands — just an extra
-`bats Tests/install.bats` line in the preflight script.
+`install.bats` is now wired into `scripts/preflight-release.sh` (step 3
+of 9 — see [TASK-39](../backlog/tasks/)). Running the preflight
+end-to-end before `scripts/release.sh` is the supported path for cutting
+a release; running `bats Tests/install.bats` standalone is the supported
+path for iterating on the install scripts themselves.

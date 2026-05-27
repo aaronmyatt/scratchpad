@@ -123,9 +123,9 @@ SHA_HEX="$(awk '{print $1}' "${SHA_PATH}")"
 # ── 6. Report ────────────────────────────────────────────────────────────────
 TARBALL_SIZE="$(du -h "${TARBALL_PATH}" | awk '{print $1}')"
 echo
-echo "==> Built ${TARBALL_PATH#${PROJECT_ROOT}/} (${TARBALL_SIZE})"
+echo "==> Built ${TARBALL_PATH#"${PROJECT_ROOT}"/} (${TARBALL_SIZE})"
 echo "    sha256: ${SHA_HEX}"
-echo "    sidecar: ${SHA_PATH#${PROJECT_ROOT}/}"
+echo "    sidecar: ${SHA_PATH#"${PROJECT_ROOT}"/}"
 echo
 echo "    To verify locally:"
 echo "      cd '${BUILD_DIR}' && shasum -a 256 -c '${TARBALL_NAME}.sha256'"

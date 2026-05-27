@@ -82,11 +82,23 @@ so the warning never appears.
 Requires Swift 6 toolchain (`swift --version` ≥ 6.3) on macOS 14+.
 
 ```sh
-swift build               # builds Scratchpad (app) + sp (CLI)
-swift run Scratchpad      # launches the menu-bar app
-swift test                # runs the Swift suite (pure-logic regressions)
-bats Tests/install.bats   # install-hygiene regression guards — see Tests/README.md
+swift build                          # builds Scratchpad (app) + sp (CLI)
+swift run Scratchpad                 # launches the menu-bar app
+swift test                           # runs the Swift suite (pure-logic regressions)
+bats Tests/install.bats              # install-hygiene regression guards — see Tests/README.md
+./scripts/preflight-release.sh       # full release-blocking chain (~60-90s)
 ```
+
+Pre-commit hooks (lefthook — runs `swift test` + `shellcheck` on every
+commit, ~3–5s) need a one-time setup:
+
+```sh
+brew install lefthook shellcheck     # also: brew install bats-core (for the bats suite)
+lefthook install                     # registers .git/hooks/pre-commit
+```
+
+`git commit --no-verify` bypasses the hook for a single commit when you
+need it.
 
 The app appears in your menu bar as a small note icon. Left-click toggles the
 window; right-click opens Show / Hide / Quit. The window stays above other

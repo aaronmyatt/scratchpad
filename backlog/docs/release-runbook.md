@@ -48,27 +48,56 @@ script does, and as a fallback when something genuinely needs a one-off.
 
 ---
 
-## 0. Pre-flight (will become automated by TASK-39)
+## 0. Pre-flight
 
-Until TASK-39 ships a `scripts/preflight-release.sh`, run these by hand:
+Single command, runs every release-blocking check from a clean state:
 
 ```bash
-# Test suite is green
-swift test
+./scripts/preflight-release.sh
+```
 
-# Build pipeline is healthy (these are idempotent)
+The script chains:
+
+1. `rm -rf build/` (test from zero state)
+2. `swift test` (pure-logic regressions)
+3. `bats Tests/install.bats` (install-hygiene regression guards — bundle
+   sealing, quarantine strip, Cask template integrity)
+4. `scripts/build-app.sh`
+5. `scripts/build-tarball.sh`
+6. `scripts/build-dmg.sh`
+7. tarball sha256 round-trip (`shasum -c`)
+8. DMG mount + detach via `hdiutil` (catches corrupt DMG before publish)
+9. `shellcheck scripts/*.sh install.sh`
+
+Failure at any step prints the regressed step name and the underlying
+tool's stderr; exit code is non-zero so CI/scripts can chain it. No
+interactive prompts. No skip flag — if you genuinely need to bypass a
+step, comment it out locally and own the regression.
+
+**Prereqs** (one-time): `brew install bats-core shellcheck`. The full
+suite takes ~60–90 s on a warm cache (dominated by the two `swift build
+-c release` cycles inside steps 3 and 4).
+
+### Fallback — running individual steps by hand
+
+When you need to debug a specific failure, the underlying commands are
+all callable independently:
+
+```bash
+swift test
+bats Tests/install.bats
 ./scripts/build-app.sh
 ./scripts/build-tarball.sh
 ./scripts/build-dmg.sh
 
-# Smoke-test install.sh against the local artifact before publishing
+# Manual smoke-test of install.sh against the local artifact
 SCRATCHPAD_TARBALL_URL="file://$(pwd)/build/Scratchpad-arm64.tar.gz" \
   SCRATCHPAD_INSTALL_DIR="$(mktemp -d)" \
   ./install.sh
 ```
 
-If any of the above is red, fix it before tagging — a bad tag is much
-more annoying to retract than to never push.
+A bad tag is much more annoying to retract than to never push — fix any
+red here before tagging.
 
 ---
 
