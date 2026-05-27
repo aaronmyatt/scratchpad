@@ -84,7 +84,8 @@ Requires Swift 6 toolchain (`swift --version` ≥ 6.3) on macOS 14+.
 ```sh
 swift build               # builds Scratchpad (app) + sp (CLI)
 swift run Scratchpad      # launches the menu-bar app
-swift test                # runs the test suite
+swift test                # runs the Swift suite (pure-logic regressions)
+bats Tests/install.bats   # install-hygiene regression guards — see Tests/README.md
 ```
 
 The app appears in your menu bar as a small note icon. Left-click toggles the
