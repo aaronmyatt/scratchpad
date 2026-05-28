@@ -4,7 +4,7 @@ title: 'sp: --version flag prints the installed version and exits'
 status: Done
 assignee: []
 created_date: '2026-05-26 12:14'
-updated_date: '2026-05-27 14:11'
+updated_date: '2026-05-28 05:44'
 labels:
   - cli
   - ux
@@ -63,7 +63,7 @@ Out of scope (deliberately): `sp --help` already exists and documents transports
 <!-- AC:BEGIN -->
 - [x] #1 `sp --version` and `sp -V` both print a single line `sp <semver>` to stdout and exit 0.
 - [x] #2 When run from a bundled .app, the version matches `CFBundleShortVersionString` from the enclosing Info.plist.
-- [x] #3 When run from a dev `swift run` build (no enclosing .app), it prints a clearly-non-release marker (e.g. `sp dev`) and exits 0 — never crashes.
+- [x] #3 When run from a dev build (no enclosing .app), it reports the real working-tree version via `git describe --tags --always` (production parity); degrades to `sp dev` only when git resolution fails (binary outside a repo / git absent). Always exits 0 — never crashes.
 - [x] #4 Bare `sp` (no args, terminal), `sp --help`, `sp -m ...`, `sp <file>`, and `echo x | sp` continue to behave exactly as today (regression-tested manually or via the bats suite from TASK-48).
 - [x] #5 README / install.sh next-steps mention `sp --version` as the verification one-liner.
 <!-- AC:END -->
@@ -138,6 +138,20 @@ sp --bogus (unknown flag)                                   → exit 2 ✓ (pres
 ```
 
 Bare `sp` from a tty (case 1, autostart path) was not exercised in the harness (non-tty), but the case 1 branch is untouched — only case 2 gained the new dispatch.
+
+2026-05-28 — Follow-up (user request): dev builds now report the real version instead of `sp dev`.
+
+Original AC#3 specified `sp dev` as the dev-build output. Per user, changed dev behaviour to mirror production: when there's no enclosing bundle, printVersion() now falls back to gitDescribeVersion(), which shells out to `git describe --tags --always` from the binary's directory (resolved via Bundle.main.executablePath, `git -C <exeDir>`) and strips the leading `v` — identical resolution to scripts/build-app.sh:64. So `.build/debug/sp --version` and a bundle built from the same commit now print the same string.
+
+`sp dev` is retained ONLY as a degenerate fallback when git resolution fails (dev binary copied outside the repo, or git absent). Production path is unchanged and never shells out — Bundle.main.infoDictionary returns early.
+
+AC#3 reworded to match. Verified:
+```
+.build/debug/sp --version          → sp 0.1.5-4-gb498f83   (git: v0.1.5-4-gb498f83)
+bundled sp --version               → sp 0.1.5-4-gb498f83   (≡ plist)
+dev binary run outside repo        → sp dev               (exit 0, no crash)
+```
+Shipped as a separate follow-up commit after the original TASK-49 commit (a230135).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

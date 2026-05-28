@@ -56,32 +56,87 @@ func printUsage() {
     print(msg)
 }
 
-// Print "sp <semver>" — or "sp dev" when running outside a bundle (e.g.
-// `swift run sp`, or `.build/release/sp` invoked directly during development).
+// Print "sp <semver>". Two resolution paths, in priority order:
 //
-// Why Bundle.main rather than walking up to ../../Info.plist by hand:
-//   When this binary lives at Scratchpad.app/Contents/MacOS/sp, Foundation
-//   detects the standard .app bundle layout and Bundle.main resolves to
-//   the enclosing .app — so its infoDictionary is the .app's Info.plist
-//   automatically. No path-string surgery required, and the source of truth
-//   stays single: build-app.sh writes CFBundleShortVersionString into the
-//   plist (see scripts/build-app.sh:128), and we read it back through the
-//   same key. Outside a bundle, infoDictionary is nil-or-empty for this key
-//   and we fall back to "dev".
+//   1. Bundled (production): read CFBundleShortVersionString from the
+//      enclosing .app's Info.plist. When this binary lives at
+//      Scratchpad.app/Contents/MacOS/sp, Foundation detects the standard
+//      .app layout and Bundle.main resolves to the enclosing .app — so its
+//      infoDictionary IS the .app's Info.plist, no path surgery required.
+//      build-app.sh writes that key from `git describe` (see
+//      scripts/build-app.sh:64,128), so this stays in lockstep with the
+//      bundle. Zero subprocess cost on the hot path.
+//
+//   2. Unbundled (dev: `swift run sp`, `.build/release/sp`): there's no
+//      enclosing bundle, so fall back to computing the version the *same*
+//      way build-app.sh does — `git describe --tags --always` from the
+//      binary's directory. This keeps `sp --version` honest during
+//      development (reports the real working-tree version, e.g.
+//      "0.1.5-3-gabc1234") instead of an opaque "dev" placeholder, so dev
+//      behaviour mirrors production. Only reached outside a bundle, so the
+//      git dependency never touches a shipped install.
+//
+// If both fail (e.g. a dev binary copied out of the repo, or git absent),
+// degrade to "sp dev" rather than crashing.
 //
 // Refs:
 //   - Bundle.main:                https://developer.apple.com/documentation/foundation/bundle/1409655-main
 //   - CFBundleShortVersionString: https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring
-//   - .app bundle anatomy:        https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html
+//   - git describe:               https://git-scm.com/docs/git-describe
 func printVersion() {
-    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-    // Treat empty string the same as missing — defends against a broken
-    // build-app.sh that interpolated an unset shell var into the plist.
-    if let v = version, !v.isEmpty {
+    if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+       !v.isEmpty {
+        print("sp \(v)")
+    } else if let v = gitDescribeVersion() {
         print("sp \(v)")
     } else {
         print("sp dev")
     }
+}
+
+/// Resolve the working-tree version via `git describe --tags --always`,
+/// matching scripts/build-app.sh:64 exactly so dev output equals what a
+/// bundle built from the same commit would report. Returns nil (caller
+/// falls back to "dev") when git isn't available, the binary lives outside
+/// a git repo, or the command otherwise fails.
+///
+/// We run git with `-C <dir-of-this-binary>` rather than the process cwd so
+/// it resolves the right repo no matter where the user invoked sp from —
+/// git walks upward from there to find the enclosing .git. For a dev build
+/// the binary lives under .build/ inside the repo, so this lands in-tree.
+func gitDescribeVersion() -> String? {
+    // executablePath is the absolute path to the running binary even when
+    // unbundled — more reliable than CommandLine.arguments[0], which can be
+    // a bare relative name depending on how the process was launched.
+    guard let exePath = Bundle.main.executablePath else { return nil }
+    let exeDir = (exePath as NSString).deletingLastPathComponent
+
+    let proc = Process()
+    // /usr/bin/git is the xcode-select shim, always present on a dev Mac.
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    proc.arguments = ["-C", exeDir, "describe", "--tags", "--always"]
+    let stdout = Pipe()
+    proc.standardOutput = stdout
+    // Swallow git's stderr ("not a git repository", etc.) — we surface
+    // failure via the nil return, not by leaking noise to the user.
+    proc.standardError = FileHandle.nullDevice
+
+    do {
+        try proc.run()
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return nil }
+    } catch {
+        return nil
+    }
+
+    let data = stdout.fileHandleForReading.readDataToEndOfFile()
+    var version = String(decoding: data, as: UTF8.self)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !version.isEmpty else { return nil }
+    // Strip the leading "v" from the git tag convention, identical to
+    // build-app.sh's `VERSION="${RAW_VERSION#v}"`, so the two stay in sync.
+    if version.hasPrefix("v") { version.removeFirst() }
+    return version
 }
 
 // ── Resolve input source ──────────────────────────────────────────────────────
