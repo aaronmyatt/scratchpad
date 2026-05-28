@@ -184,6 +184,50 @@ setup_file() {
         || fail "Cask template's postflight block no longer references com.apple.quarantine — Sequoia first-launch will break (see scripts/scratchpad.cask.rb.template, postflight stanza)"
 }
 
+# ── Test 6: `sp --version` via a PATH symlink reports the BUNDLE version ───────
+# Regression guard for the v0.1.6 bug: when sp is invoked through its PATH
+# symlink (the Homebrew Cask installs /opt/homebrew/bin/sp →
+# .../Scratchpad.app/Contents/MacOS/sp), an earlier implementation used
+# Bundle.main, which keyed off the *launch* path, walked up to the symlink's
+# prefix (/opt/homebrew), found Homebrew's own Info.plist, and printed
+# Homebrew's version ("5.1.14") instead of Scratchpad's.
+#
+# This reproduces the exact trap: a symlink inside a fake prefix that ALSO
+# contains a decoy Info.plist with a bogus version. sp must resolve its real
+# location and report the .app's CFBundleShortVersionString, ignoring the
+# decoy. If sp regresses to launch-path resolution, it'll print "9.9.9" and
+# this test fails.
+@test "sp --version via PATH symlink reports the bundle version, not the symlink prefix's" {
+    local app="${PROJECT_ROOT}/build/Scratchpad.app"
+    local real_sp="${app}/Contents/MacOS/sp"
+    [[ -x "${real_sp}" ]] \
+        || fail "bundled sp missing at ${real_sp} — build-app.sh layout changed?"
+
+    local expected
+    expected="$(plutil -extract CFBundleShortVersionString raw "${app}/Contents/Info.plist")"
+
+    # Fake Homebrew-style prefix: bin/sp symlink + a decoy Info.plist at the
+    # prefix root (the thing Bundle.main wrongly picked up).
+    local prefix
+    prefix="$(mktemp -d -t scratchpad-symlink.XXXXXX)"
+    mkdir -p "${prefix}/bin"
+    cat >"${prefix}/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleShortVersionString</key><string>9.9.9</string>
+</dict></plist>
+PLIST
+    ln -s "${real_sp}" "${prefix}/bin/sp"
+
+    run "${prefix}/bin/sp" --version
+    local out="${output}"
+    rm -rf "${prefix}"
+
+    [[ "${out}" == "sp ${expected}" ]] \
+        || fail "sp --version via symlink printed '${out}', expected 'sp ${expected}' — Bundle.main launch-path regression? see printVersion()/resolvedExecutablePath() in Sources/sp/main.swift"
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Examples (REPL-evaluable from project root):
 #

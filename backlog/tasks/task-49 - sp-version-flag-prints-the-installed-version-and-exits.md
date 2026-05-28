@@ -4,7 +4,7 @@ title: 'sp: --version flag prints the installed version and exits'
 status: Done
 assignee: []
 created_date: '2026-05-26 12:14'
-updated_date: '2026-05-28 05:47'
+updated_date: '2026-05-28 07:38'
 labels:
   - cli
   - ux
@@ -154,6 +154,14 @@ dev binary run outside repo        → sp dev               (exit 0, no crash)
 Shipped as a separate follow-up commit after the original TASK-49 commit (a230135).
 
 2026-05-28 — Follow-up 2 (user request): dropped the `sp dev` placeholder entirely. When neither the bundle nor git can resolve a version, printVersion() now writes an error to stderr and exits 1 rather than printing a fake `sp dev` that would mask the failure. The unresolvable case only happens for a dev binary run outside its git repo — an edge with no legitimate use, so failing loudly is correct. AC#3 reworded. Verified: in-repo dev → `sp 0.1.5-5-g2908276` (exit 0); out-of-repo → stderr error (exit 1).
+
+2026-05-28 — Bug found post-release (v0.1.6) + fixed. User reported `sp --version` printing `sp 5.1.14` from a brew-installed sp. Root cause: `5.1.14` is Homebrew's own version. When sp is invoked via its Cask PATH symlink (/opt/homebrew/bin/sp → /Applications/Scratchpad.app/Contents/MacOS/sp), `Bundle.main` keys off the *launch* path (the unresolved symlink), walks up /opt/homebrew/bin → /opt/homebrew, finds Homebrew's Info.plist, and reports its CFBundleShortVersionString. Bundle.main never resolved the symlink to the real binary inside the .app, so AC#2's 'matches the enclosing Info.plist' only held when sp was run by its real path — not via the symlink every real user gets.
+
+Fix (Sources/sp/main.swift): replaced the Bundle.main read with resolvedExecutablePath() — `_NSGetExecutablePath` + `realpath()` to canonicalise the symlink — then bundleVersionFromExecutable() reads Info.plist two dirs up from the *real* binary, with a structural MacOS/Contents layout check so an unrelated Info.plist can't be picked up. gitDescribeVersion() also switched to resolvedExecutablePath().
+
+Verified: real path → sp 0.1.6; symlink through a fake prefix carrying a decoy 9.9.9 Info.plist → sp 0.1.6 (no longer reads the decoy); dev → git describe. Regression guard added as Tests/install.bats test 6 (symlink-with-decoy-plist → must report bundle version). Full bats suite 6/6 green.
+
+NOTE: v0.1.6 shipped with this bug; the fix needs a follow-up patch release (v0.1.7) for brew/curl users to pick it up.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

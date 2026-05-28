@@ -58,35 +58,42 @@ func printUsage() {
 
 // Print "sp <semver>". Two resolution paths, in priority order:
 //
-//   1. Bundled (production): read CFBundleShortVersionString from the
-//      enclosing .app's Info.plist. When this binary lives at
-//      Scratchpad.app/Contents/MacOS/sp, Foundation detects the standard
-//      .app layout and Bundle.main resolves to the enclosing .app — so its
-//      infoDictionary IS the .app's Info.plist, no path surgery required.
+//   1. Bundled (production): read CFBundleShortVersionString directly from
+//      the enclosing .app's Info.plist, located relative to the *resolved*
+//      executable path (Scratchpad.app/Contents/MacOS/sp → ../Info.plist).
 //      build-app.sh writes that key from `git describe` (see
 //      scripts/build-app.sh:64,128), so this stays in lockstep with the
-//      bundle. Zero subprocess cost on the hot path.
+//      bundle.
 //
-//   2. Unbundled (dev: `swift run sp`, `.build/release/sp`): there's no
-//      enclosing bundle, so fall back to computing the version the *same*
-//      way build-app.sh does — `git describe --tags --always` from the
-//      binary's directory. This keeps `sp --version` honest during
-//      development (reports the real working-tree version, e.g.
-//      "0.1.5-3-gabc1234") so dev behaviour mirrors production. Only
-//      reached outside a bundle, so the git dependency never touches a
-//      shipped install.
+//      WHY NOT Bundle.main: Bundle.main keys off the path the process was
+//      *launched* with, NOT the real binary location. When sp is invoked
+//      through its PATH symlink (e.g. the Homebrew Cask's
+//      /opt/homebrew/bin/sp → .../Scratchpad.app/Contents/MacOS/sp), the
+//      symlink is left unresolved, Foundation walks up from /opt/homebrew/bin
+//      to /opt/homebrew, finds *Homebrew's own* Info.plist, and reports
+//      Homebrew's version (e.g. "5.1.14") instead of Scratchpad's. This bit
+//      us in v0.1.6. Resolving the symlink with realpath() first, then
+//      reading the plist by hand, sidesteps the whole class of bug.
+//
+//   2. Unbundled (dev: `swift run sp`, `.build/release/sp`): no enclosing
+//      .app, so fall back to computing the version the *same* way
+//      build-app.sh does — `git describe --tags --always` from the binary's
+//      directory. Keeps `sp --version` honest during development (reports
+//      the real working-tree version, e.g. "0.1.5-3-gabc1234") so dev
+//      mirrors production. Only reached outside a bundle, so the git
+//      dependency never touches a shipped install.
 //
 // If both fail (e.g. a dev binary copied out of the repo, or git absent),
 // we can't report a truthful version — error to stderr and exit non-zero
 // rather than printing a placeholder that masks the failure.
 //
 // Refs:
-//   - Bundle.main:                https://developer.apple.com/documentation/foundation/bundle/1409655-main
+//   - _NSGetExecutablePath:       https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dyld.3.html
+//   - realpath(3):                https://man.openbsd.org/realpath.3
 //   - CFBundleShortVersionString: https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring
 //   - git describe:               https://git-scm.com/docs/git-describe
 func printVersion() {
-    if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-       !v.isEmpty {
+    if let v = bundleVersionFromExecutable() {
         print("sp \(v)")
     } else if let v = gitDescribeVersion() {
         print("sp \(v)")
@@ -96,21 +103,64 @@ func printVersion() {
     }
 }
 
+/// Absolute, symlink-resolved path to the running binary. `_NSGetExecutablePath`
+/// returns the path the process was launched with (which may be a symlink or a
+/// relative name); `realpath()` canonicalises it to the actual on-disk file.
+/// This is the key difference from Bundle.main — see printVersion's note on
+/// the Homebrew-symlink bug.
+func resolvedExecutablePath() -> String? {
+    // First call with a nil buffer just reports the size needed (incl. NUL).
+    var size: UInt32 = 0
+    _ = _NSGetExecutablePath(nil, &size)
+    guard size > 0 else { return nil }
+    var buf = [CChar](repeating: 0, count: Int(size))
+    guard _NSGetExecutablePath(&buf, &size) == 0 else { return nil }
+    // realpath resolves the PATH symlink → the real binary inside the .app.
+    if let resolved = realpath(buf, nil) {
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+    // realpath only fails if the path doesn't exist (shouldn't happen for a
+    // running binary) — fall back to the unresolved path rather than nil.
+    return String(cString: buf)
+}
+
+/// Read CFBundleShortVersionString from the .app Info.plist enclosing the
+/// running binary, or nil when sp isn't inside a .app (dev builds). Locates
+/// the plist structurally — sp lives at `<App>.app/Contents/MacOS/sp`, so
+/// Info.plist is two directories up — and sanity-checks the `MacOS`/`Contents`
+/// layout before trusting it, so a binary run from an unexpected location
+/// can't make us read some unrelated Info.plist.
+func bundleVersionFromExecutable() -> String? {
+    guard let exe = resolvedExecutablePath() else { return nil }
+    let exeURL = URL(fileURLWithPath: exe)
+    let macOSDir = exeURL.deletingLastPathComponent()        // …/Contents/MacOS
+    let contentsDir = macOSDir.deletingLastPathComponent()   // …/Contents
+    guard macOSDir.lastPathComponent == "MacOS",
+          contentsDir.lastPathComponent == "Contents" else { return nil }
+
+    let plistURL = contentsDir.appendingPathComponent("Info.plist")
+    guard let data = try? Data(contentsOf: plistURL),
+          let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+          let dict = plist as? [String: Any],
+          let v = dict["CFBundleShortVersionString"] as? String,
+          !v.isEmpty
+    else { return nil }
+    return v
+}
+
 /// Resolve the working-tree version via `git describe --tags --always`,
 /// matching scripts/build-app.sh:64 exactly so dev output equals what a
-/// bundle built from the same commit would report. Returns nil (caller
-/// falls back to "dev") when git isn't available, the binary lives outside
-/// a git repo, or the command otherwise fails.
+/// bundle built from the same commit would report. Returns nil when git
+/// isn't available, the binary lives outside a git repo, or the command
+/// otherwise fails.
 ///
 /// We run git with `-C <dir-of-this-binary>` rather than the process cwd so
 /// it resolves the right repo no matter where the user invoked sp from —
 /// git walks upward from there to find the enclosing .git. For a dev build
 /// the binary lives under .build/ inside the repo, so this lands in-tree.
 func gitDescribeVersion() -> String? {
-    // executablePath is the absolute path to the running binary even when
-    // unbundled — more reliable than CommandLine.arguments[0], which can be
-    // a bare relative name depending on how the process was launched.
-    guard let exePath = Bundle.main.executablePath else { return nil }
+    guard let exePath = resolvedExecutablePath() else { return nil }
     let exeDir = (exePath as NSString).deletingLastPathComponent
 
     let proc = Process()

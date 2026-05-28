@@ -43,8 +43,13 @@ What it guards against — backstory for each test is inlined as comments in
   `com.apple.quarantine` xattr by default; on Sequoia this blocks first-launch
   with no bypass. Fix lives in `install.sh` and `scripts/scratchpad.cask.rb.template`;
   tests 3 + 4 + 5 pin it.
+- **v0.1.6 `sp --version` symlink regression.** Invoked through its Homebrew
+  PATH symlink, `sp` reported Homebrew's version instead of Scratchpad's
+  (Bundle.main keyed off the launch path, not the real binary). Fix lives in
+  `Sources/sp/main.swift` (resolvedExecutablePath); test 6 pins it.
 
-See [`backlog/tasks/task-48`](../backlog/tasks/) for the full incident history.
+See [`backlog/tasks/task-48`](../backlog/tasks/) and
+[`task-49`](../backlog/tasks/) for the full incident history.
 
 ## Pre-release wiring
 
