@@ -1,10 +1,10 @@
 ---
 id: TASK-32
 title: Homebrew tap formula for scratchpad
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-24 16:04'
-updated_date: '2026-05-25 13:39'
+updated_date: '2026-05-26 14:25'
 labels: []
 milestone: M6 — UX polish + packaging
 dependencies:
@@ -15,7 +15,7 @@ modified_files:
   - backlog/docs/release-runbook.md
   - docs/install/brew.md
 priority: medium
-ordinal: 32000
+ordinal: 500
 ---
 
 ## Description

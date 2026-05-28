@@ -71,6 +71,16 @@ struct ContentView: View {
     // ── Copy button ephemeral state ──────────────────────────────────────
     @State private var copyFlash: Bool = false
 
+    // ── ⌘↩ clipboard-handoff flash (TASK-44) ─────────────────────────────
+    /// Briefly true after ⌘↩ copies a command to the clipboard, so the
+    /// preview row can swap its trailing tag from "→ clipboard" to
+    /// "Copied!" and give the user a moment of confirmation.
+    @State private var handoffFlash: Bool = false
+    /// Snapshot of the most recently copied command, shown in the
+    /// confirmation banner that appears above the input bar for ~2s.
+    /// nil means "no banner visible".
+    @State private var lastCopiedCommand: String? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -79,6 +89,7 @@ struct ContentView: View {
             Divider()
             displayArea
             Divider()
+            handoffBanner
             searchOverlay
             inputBar
         }
@@ -247,36 +258,76 @@ struct ContentView: View {
     }
 
     private var inputBar: some View {
-        HStack(spacing: 6) {
-            Text("$")
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text("$")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
 
-            TextField(
-                isRunning ? "Running…" : "shell command (Enter to run, ↑/↓ history, ⌃R search, ⌘L focus)",
-                text: $input
-            )
-            .textFieldStyle(.plain)
-            .font(.system(.body, design: .monospaced))
-            .focused($focused, equals: .input)
-            .disabled(isRunning)
-            .onSubmit(runCommand)
-            // History recall (TASK-11). `.onKeyPress` fires when the field
-            // is focused, which is exactly when we want recall to work.
-            // Returning `.handled` swallows the keystroke so the field's
-            // default cursor-movement behavior (which is a no-op for a
-            // single-line TextField anyway) doesn't also run.
-            .onKeyPress(.upArrow)   { recallPrevious(); return .handled }
-            .onKeyPress(.downArrow) { recallNext();     return .handled }
-            // Detect manual edits: when the user types into a recalled entry,
-            // drop the cursor back to "live" so subsequent ↑/↓ start from
-            // their edited text. We tell apart "code set the field" from
-            // "user typed" by comparing against `lastSetByRecall`.
-            .onChange(of: input) { _, newValue in
-                if lastSetByRecall == newValue { return }
-                historyCursor = 0
-                savedLiveInput = ""
-                lastSetByRecall = nil
+                TextField(
+                    isRunning ? "Running…" : "shell command (Enter to run, ↑/↓ history, ⌃R search, ⌘L focus)",
+                    text: $input
+                )
+                .textFieldStyle(.plain)
+                .font(.system(.body, design: .monospaced))
+                .focused($focused, equals: .input)
+                .disabled(isRunning)
+                .onSubmit(runCommand)
+                // History recall (TASK-11). `.onKeyPress` fires when the field
+                // is focused, which is exactly when we want recall to work.
+                // Returning `.handled` swallows the keystroke so the field's
+                // default cursor-movement behavior (which is a no-op for a
+                // single-line TextField anyway) doesn't also run.
+                .onKeyPress(.upArrow)   { recallPrevious(); return .handled }
+                .onKeyPress(.downArrow) { recallNext();     return .handled }
+                // Detect manual edits: when the user types into a recalled entry,
+                // drop the cursor back to "live" so subsequent ↑/↓ start from
+                // their edited text. We tell apart "code set the field" from
+                // "user typed" by comparing against `lastSetByRecall`.
+                .onChange(of: input) { _, newValue in
+                    if lastSetByRecall == newValue { return }
+                    historyCursor = 0
+                    savedLiveInput = ""
+                    lastSetByRecall = nil
+                }
+            }
+
+            // ── Live invocation preview (TASK-44 AC#7 + ergonomics pass) ─
+            //
+            // The two input-bar modes wire the dump in differently:
+            //   ↩  runs the command inline with dump bytes on STDIN
+            //   ⌘↩ copies a ready-to-paste command (with the dump file
+            //      PATH inlined) to the system clipboard, so the user
+            //      can run it in their own terminal.
+            // That distinction is invisible from the input bar alone —
+            // so we render a live, non-interactive preview of how the
+            // typed text resolves in each mode.
+            //
+            // Visibility: only when the input bar has focus. A
+            // permanent UI element would feel noisy.
+            //
+            // `‹dump›` and `‹dump-file›` use angle-quote characters
+            // (U+2039 / U+203A) rather than ASCII `<` / `>` so they
+            // can't be mistaken for shell redirection / glob syntax.
+            if focused == .input {
+                VStack(alignment: .leading, spacing: 1) {
+                    previewRow(
+                        prefix: "↩",
+                        body: inlineInvocationPreview,
+                        trailing: nil
+                    )
+                    previewRow(
+                        prefix: "⌘↩",
+                        body: ClipboardHandoff.clipboardPreview(command: input),
+                        trailing: handoffFlash ? "✓ Copied!" : "→ clipboard",
+                        // Accent colour during the brief post-copy flash
+                        // emphasises the swap; otherwise the label stays
+                        // visually quiet alongside the rest of the caption.
+                        trailingColor: handoffFlash ? .accentColor : .secondary
+                    )
+                }
+                .padding(.leading, 14)
+                .padding(.top, 1)
             }
         }
         .padding(.horizontal, 12)
@@ -306,6 +357,15 @@ struct ContentView: View {
             // SwiftUI installs Button keyboardShortcuts at the window level.
             Button("") { ctrlRPressed() }
                 .keyboardShortcut("r", modifiers: .control)
+
+            // ⌘↩: escape the inline-run model — copy a ready-to-paste
+            // version of the typed command (with the dump file path
+            // inlined) to the system clipboard, so the user can run it
+            // in whatever terminal they already have open (TASK-44).
+            // Works window-wide, same idiom as ⌘L/⌘[/⌘].
+            Button("") { copyCommandToClipboard() }
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(isRunning)
         }
         .opacity(0)
         .accessibilityHidden(true)
@@ -549,6 +609,203 @@ struct ContentView: View {
             // so resume follow-newest.
             pinnedEventId = nil
             isRunning = false
+        }
+    }
+
+    // ── Invocation preview helpers (TASK-44 ergonomics pass) ──────────────
+
+    /// How ↩ (inline) will evaluate the typed command. The inline path
+    /// runs `/bin/sh -c <cmd>` with the dump bytes on STDIN — equivalent
+    /// to `<dump> | <cmd>` in shell terms. Pipe notation is used in the
+    /// preview because it matches most users' mental model of "feed the
+    /// data into a command".
+    ///
+    /// - empty input → a placeholder prompt ("type a command…").
+    /// - non-empty   → `‹dump› | <cmd>`.
+    private var inlineInvocationPreview: String {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "type a command…" }
+        return "‹dump› | \(trimmed)"
+    }
+
+    /// Render a single preview row.
+    ///
+    /// Layout (left-to-right):
+    ///   - `prefix`  — small key-hint glyph (↩ / ⌘↩), fixed width so the
+    ///                 two rows align vertically.
+    ///   - `trailing` — affordance label ("→ clipboard", "Copied!").
+    ///                  Placed *adjacent to the prefix* so the user sees
+    ///                  the consequence of the keybinding at a glance,
+    ///                  not buried at the far right of the row.
+    ///   - `body`    — the rendered invocation in monospace. Single line
+    ///                 with middle truncation so long commands collapse
+    ///                 cleanly rather than wrapping.
+    ///
+    /// Trailing colour can be overridden (defaults to `.tertiary`). The
+    /// caller uses an accent colour during the post-copy flash to give
+    /// the swap-text a brief moment of visual emphasis.
+    @ViewBuilder
+    private func previewRow(
+        prefix: String,
+        body: String,
+        trailing: String?,
+        trailingColor: Color = .secondary
+    ) -> some View {
+        HStack(spacing: 6) {
+            // Fixed-width prefix column so the two rows align visually
+            // regardless of whether the prefix is ↩ or ⌘↩.
+            Text(prefix)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .frame(width: 22, alignment: .leading)
+
+            if let trailing {
+                // Adjacent affordance — small fixed-ish width so the
+                // command bodies in the two rows still line up roughly.
+                Text(trailing)
+                    .font(.caption2)
+                    .foregroundStyle(trailingColor)
+                    .italic()
+                    .frame(minWidth: 80, alignment: .leading)
+            }
+
+            Text(body)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    // ── Clipboard hand-off confirmation banner (TASK-44) ──────────────────
+
+    /// Brief banner that appears above the input bar after ⌘↩ fires,
+    /// confirming what was copied. Always rendered (so the layout doesn't
+    /// jump), but its content is empty when `lastCopiedCommand` is nil,
+    /// collapsing to zero height. Opacity transition gives a soft fade.
+    ///
+    /// Visual treatment uses the system accent tint at low opacity so it
+    /// stands out against the surrounding UI without screaming. Mirrors
+    /// the same `withAnimation` window used by the inline "Copied!" swap
+    /// (1.5s of visibility before fade-out).
+    @ViewBuilder
+    private var handoffBanner: some View {
+        if let copied = lastCopiedCommand {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.tint)
+                Text("Copied to clipboard:")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                Text(copied)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.accentColor.opacity(0.12))
+            .overlay(
+                // Thin accent-coloured rule along the bottom for a bit
+                // of extra visual definition. Cheap and SwiftUI-native.
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.4))
+                    .frame(height: 1),
+                alignment: .bottom
+            )
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
+    // ── ⌘↩ clipboard-handoff (TASK-44) ────────────────────────────────────
+
+    /// ⌘↩ handler: stage the dump to a temp file and copy a ready-to-paste
+    /// command line — referencing that file — to the system clipboard.
+    /// The user pastes into whatever terminal they already have open.
+    ///
+    /// Behavioural differences from `runCommand()`:
+    ///   - Does NOT clear the input field. The user is handing off to
+    ///     another window; clearing here would force them to retype if
+    ///     they want to iterate inline next.
+    ///   - Does NOT push to EventStore. Nothing executed in Scratchpad,
+    ///     so there's no result to record.
+    ///   - Does push to InputHistory (when non-empty), so ⌃R and ↑
+    ///     can recall the same command later. Matches the inline path's
+    ///     "save what was attempted" posture.
+    ///   - Does NOT change `pinnedEventId` or `isRunning`. The currently
+    ///     displayed dump keeps showing (AC#1).
+    private func copyCommandToClipboard() {
+        let command = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !command.isEmpty {
+            InputHistory.shared.add(command)
+        }
+        let payload = displayedEvent?.pipeData ?? Data()
+
+        do {
+            let dumpPath = try ClipboardHandoff.stageDump(payload: payload)
+            let clipboardLine = ClipboardHandoff.clipboardCommand(
+                typedCommand: command,
+                dumpPath: dumpPath
+            )
+
+            // NSPasteboard.general is the standard system clipboard;
+            // setString(_:forType: .string) is what every plain-text
+            // copy in macOS uses.
+            // Ref: https://developer.apple.com/documentation/appkit/nspasteboard
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(clipboardLine, forType: .string)
+
+            // Two tiers of feedback so the user can't miss that ⌘↩ did
+            // something:
+            //   1. Inline: the "→ clipboard" affordance label on the
+            //      preview row flips to "✓ Copied!" in the accent
+            //      colour for 1.5s.
+            //   2. Banner: a tinted strip slides in above the input bar
+            //      showing the exact line that landed on the clipboard,
+            //      stays ~2s, then fades out.
+            //
+            // The banner is the "notification" — it surfaces the actual
+            // copied text, which reassures the user that the right thing
+            // got copied (and, for an empty input bar, reveals the bare
+            // dump-file path that just landed on the clipboard).
+            // 1.5s is the same flash window the toolbar Copy button
+            // uses elsewhere — keeps both copy affordances feeling
+            // consistent.
+            withAnimation(.easeOut(duration: 0.18)) {
+                handoffFlash = true
+                lastCopiedCommand = clipboardLine
+            }
+            Task {
+                // 2s gives a clear beat to read the banner content
+                // (which can be a long file path) before it disappears.
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                withAnimation(.easeIn(duration: 0.25)) {
+                    handoffFlash = false
+                    lastCopiedCommand = nil
+                }
+            }
+        } catch {
+            // Surface staging failures as a command-result event so the
+            // user knows why nothing landed on the clipboard. Empty
+            // string label when the input bar was empty.
+            let fake = ShellRunner.Result(
+                stdout: Data(),
+                stderr: Data("\(error)".utf8),
+                exitCode: -1,
+                timedOut: false,
+                truncated: false
+            )
+            let label = command.isEmpty ? "(copy command)" : command
+            store.appendCommandResult(
+                command: label,
+                result: fake,
+                displayText: "$ \(label)\n[clipboard handoff failed] \(error)"
+            )
         }
     }
 
