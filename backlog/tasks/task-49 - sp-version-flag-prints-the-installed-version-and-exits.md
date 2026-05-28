@@ -4,7 +4,7 @@ title: 'sp: --version flag prints the installed version and exits'
 status: Done
 assignee: []
 created_date: '2026-05-26 12:14'
-updated_date: '2026-05-28 05:44'
+updated_date: '2026-05-28 05:47'
 labels:
   - cli
   - ux
@@ -63,7 +63,7 @@ Out of scope (deliberately): `sp --help` already exists and documents transports
 <!-- AC:BEGIN -->
 - [x] #1 `sp --version` and `sp -V` both print a single line `sp <semver>` to stdout and exit 0.
 - [x] #2 When run from a bundled .app, the version matches `CFBundleShortVersionString` from the enclosing Info.plist.
-- [x] #3 When run from a dev build (no enclosing .app), it reports the real working-tree version via `git describe --tags --always` (production parity); degrades to `sp dev` only when git resolution fails (binary outside a repo / git absent). Always exits 0 — never crashes.
+- [x] #3 When run from a dev build (no enclosing .app), it reports the real working-tree version via `git describe --tags --always` (production parity). If version can't be resolved (binary outside a repo / git absent) it errors to stderr and exits non-zero — no placeholder, never crashes.
 - [x] #4 Bare `sp` (no args, terminal), `sp --help`, `sp -m ...`, `sp <file>`, and `echo x | sp` continue to behave exactly as today (regression-tested manually or via the bats suite from TASK-48).
 - [x] #5 README / install.sh next-steps mention `sp --version` as the verification one-liner.
 <!-- AC:END -->
@@ -152,6 +152,8 @@ bundled sp --version               → sp 0.1.5-4-gb498f83   (≡ plist)
 dev binary run outside repo        → sp dev               (exit 0, no crash)
 ```
 Shipped as a separate follow-up commit after the original TASK-49 commit (a230135).
+
+2026-05-28 — Follow-up 2 (user request): dropped the `sp dev` placeholder entirely. When neither the bundle nor git can resolve a version, printVersion() now writes an error to stderr and exits 1 rather than printing a fake `sp dev` that would mask the failure. The unresolvable case only happens for a dev binary run outside its git repo — an edge with no legitimate use, so failing loudly is correct. AC#3 reworded. Verified: in-repo dev → `sp 0.1.5-5-g2908276` (exit 0); out-of-repo → stderr error (exit 1).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

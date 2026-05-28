@@ -72,12 +72,13 @@ func printUsage() {
 //      way build-app.sh does — `git describe --tags --always` from the
 //      binary's directory. This keeps `sp --version` honest during
 //      development (reports the real working-tree version, e.g.
-//      "0.1.5-3-gabc1234") instead of an opaque "dev" placeholder, so dev
-//      behaviour mirrors production. Only reached outside a bundle, so the
-//      git dependency never touches a shipped install.
+//      "0.1.5-3-gabc1234") so dev behaviour mirrors production. Only
+//      reached outside a bundle, so the git dependency never touches a
+//      shipped install.
 //
 // If both fail (e.g. a dev binary copied out of the repo, or git absent),
-// degrade to "sp dev" rather than crashing.
+// we can't report a truthful version — error to stderr and exit non-zero
+// rather than printing a placeholder that masks the failure.
 //
 // Refs:
 //   - Bundle.main:                https://developer.apple.com/documentation/foundation/bundle/1409655-main
@@ -90,7 +91,8 @@ func printVersion() {
     } else if let v = gitDescribeVersion() {
         print("sp \(v)")
     } else {
-        print("sp dev")
+        warn("sp: could not determine version (no enclosing bundle and git describe failed)")
+        exit(1)
     }
 }
 
